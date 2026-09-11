@@ -5,6 +5,7 @@ Boots the multi-agent quant backend and opens a native dark-mode desktop window.
 
 import os
 import sys
+import io
 import time
 import socket
 import threading
@@ -15,6 +16,24 @@ import subprocess
 import traceback
 import multiprocessing
 
+# Critical fix for PyInstaller --windowed / --noconsole mode
+# On Windows windowed apps, sys.stdout, sys.stderr, and sys.stdin are None.
+# Libraries like uvicorn call sys.stdout.isatty(), causing AttributeError: 'NoneType' object has no attribute 'isatty'.
+class SafeStream(io.StringIO):
+    def write(self, s):
+        pass
+    def flush(self):
+        pass
+    def isatty(self):
+        return False
+
+if sys.stdout is None:
+    sys.stdout = SafeStream()
+if sys.stderr is None:
+    sys.stderr = SafeStream()
+if sys.stdin is None:
+    sys.stdin = io.StringIO()
+
 
 # Windows native message box for critical diagnostics
 def show_native_error(message: str, title: str = "LGC Trader - Startup Error"):
@@ -22,7 +41,7 @@ def show_native_error(message: str, title: str = "LGC Trader - Startup Error"):
         import ctypes
         ctypes.windll.user32.MessageBoxW(0, message, title, 0x10)  # MB_ICONERROR
     except Exception:
-        print(f"[{title}] {message}", file=sys.stderr)
+        pass
 
 
 # Persistent logging directory
@@ -30,13 +49,14 @@ LOG_DIR = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), 
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, "app.log")
 
+log_handlers = [logging.FileHandler(LOG_FILE, encoding="utf-8")]
+if sys.stdout and not isinstance(sys.stdout, SafeStream):
+    log_handlers.append(logging.StreamHandler(sys.stdout))
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_FILE, encoding="utf-8"),
-        logging.StreamHandler(sys.stdout)
-    ]
+    handlers=log_handlers
 )
 logger = logging.getLogger("DesktopLauncher")
 
@@ -75,7 +95,14 @@ def start_uvicorn_server():
         import uvicorn
         from server import app
         logger.info(f"Starting LGC Quant Engine on {SERVER_URL}...")
-        config = uvicorn.Config(app, host="127.0.0.1", port=SERVER_PORT, log_level="warning", loop="asyncio")
+        config = uvicorn.Config(
+            app,
+            host="127.0.0.1",
+            port=SERVER_PORT,
+            log_level="warning",
+            log_config=None,
+            loop="asyncio"
+        )
         server = uvicorn.Server(config)
         server.run()
     except Exception as e:

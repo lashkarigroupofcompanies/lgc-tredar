@@ -5,11 +5,24 @@ Serves the dark tactical dashboard and provides REST/WebSocket APIs for live age
 
 import os
 import sys
+import io
 import time
 import threading
 import logging
 from typing import Dict, Any, Optional, List
 from contextlib import asynccontextmanager
+
+if sys.stdout is None:
+    class SafeStream(io.StringIO):
+        def write(self, s): pass
+        def flush(self): pass
+        def isatty(self): return False
+    sys.stdout = SafeStream()
+if sys.stderr is None:
+    sys.stderr = SafeStream()
+if sys.stdin is None:
+    sys.stdin = io.StringIO()
+
 from fastapi import FastAPI, BackgroundTasks, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
