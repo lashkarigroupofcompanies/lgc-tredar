@@ -1,0 +1,17 @@
+{
+  "agent_level": 1,
+  "rank": "Novice Quant",
+  "xp": 0,
+  "xp_next_level": 250,
+  "total_trades_analyzed": 0,
+  "wins_analyzed": 0,
+  "losses_analyzed": 0,
+  "early_exits_saved_capital_count": 0,
+  "lessons_learned": [],
+  "strategy_performance_matrix": {},
+  "strategy_duration_learning": {},
+  "market_strategy_matrix": {},
+  "market_pattern_matrix": {},
+  "regime_mistake_records": [],
+  "recent_trade_post_mortems": []
+}

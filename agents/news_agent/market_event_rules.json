@@ -1,0 +1,125 @@
+{
+  "categories": {
+    "monetary_policy": [
+      {
+        "id": "RATE_CUT",
+        "keywords": ["rate cut", "cuts interest rate", "dovish", "lowers rates", "easy money", "monetary easing"],
+        "primary_effect": "Increases system liquidity, reduces borrowing costs, pushes investors towards risk assets.",
+        "affected_assets": ["BTC", "ETH", "TECH_STOCKS", "NIFTY50", "GOLD"],
+        "dxy_effect": "BEARISH",
+        "crypto_effect": "BULLISH",
+        "equities_effect": "BULLISH",
+        "commodities_effect": "BULLISH",
+        "confidence": 0.88,
+        "recommended_action": "ACCUMULATE_RISK_ASSETS"
+      },
+      {
+        "id": "RATE_HIKE",
+        "keywords": ["rate hike", "hikes interest rate", "hawkish", "raises rates", "tightens policy", "quantitative tightening"],
+        "primary_effect": "Drains liquidity, increases debt service cost, strengthens US dollar, triggers selloffs in growth & tech assets.",
+        "affected_assets": ["BTC", "ETH", "TECH_STOCKS", "NIFTY50", "DXY"],
+        "dxy_effect": "BULLISH",
+        "crypto_effect": "BEARISH",
+        "equities_effect": "BEARISH",
+        "commodities_effect": "BEARISH",
+        "confidence": 0.85,
+        "recommended_action": "REDUCE_EXPOSURE_OR_SHORT"
+      }
+    ],
+    "inflation_macro": [
+      {
+        "id": "INFLATION_COOLING",
+        "keywords": ["cpi drops", "inflation cools", "inflation falls", "ppi below expectation", "disinflation", "prices steady"],
+        "primary_effect": "Relieves central bank pressure to hike, sparks rally in equities and crypto.",
+        "affected_assets": ["BTC", "ETH", "US_STOCKS", "NIFTY50"],
+        "crypto_effect": "BULLISH",
+        "equities_effect": "BULLISH",
+        "confidence": 0.82,
+        "recommended_action": "LONG_MOMENTUM"
+      },
+      {
+        "id": "INFLATION_HOT",
+        "keywords": ["cpi surges", "inflation accelerates", "prices spike", "higher inflation", "hot cpi"],
+        "primary_effect": "Forces central banks to remain hawkish or hike; yields spike; risk-off environment.",
+        "affected_assets": ["BTC", "TECH_STOCKS", "BONDS"],
+        "crypto_effect": "BEARISH",
+        "equities_effect": "BEARISH",
+        "commodities_effect": "BULLISH",
+        "confidence": 0.84,
+        "recommended_action": "HEDGE_OR_CASH"
+      }
+    ],
+    "geopolitics_energy": [
+      {
+        "id": "WAR_ENERGY_SHOCK",
+        "keywords": ["war", "missile", "strike", "invasion", "conflict", "hormuz", "escalation", "trade blows", "facilities hit", "oil prices rise", "drone attack", "military action", "saudi aramco"],
+        "primary_effect": "Extreme flight to safety; crude oil supply shock; gold rallies; general stock markets drop.",
+        "affected_assets": ["CRUDE", "GOLD", "DEFENSE_STOCKS", "AIRLINES", "PAINT_STOCKS"],
+        "crude_effect": "BULLISH",
+        "gold_effect": "BULLISH",
+        "equities_effect": "BEARISH",
+        "confidence": 0.90,
+        "recommended_action": "LONG_ENERGY_GOLD_DEFENSIVE"
+      },
+      {
+        "id": "OPEC_SUPPLY_CUT",
+        "keywords": ["opec cuts output", "opec production cut", "crude supply tightens", "oil production quota"],
+        "primary_effect": "Drives crude oil prices higher, negative for oil-importing countries like India (Nifty).",
+        "affected_assets": ["CRUDE", "NIFTY50", "RELIANCE", "OMC_STOCKS"],
+        "crude_effect": "BULLISH",
+        "nifty_effect": "BEARISH",
+        "confidence": 0.80,
+        "recommended_action": "CAUTIOUS_ON_INDIAN_MARKETS"
+      }
+    ],
+    "crypto_specific": [
+      {
+        "id": "INSTITUTIONAL_ADOPTION_ETF",
+        "keywords": ["etf approved", "etf inflow", "blackrock buys", "fidelity crypto", "institutional adoption", "reserve asset"],
+        "primary_effect": "Massive direct spot buying pressure; liquidity influx from traditional finance.",
+        "affected_assets": ["BTC", "ETH", "SOL"],
+        "crypto_effect": "BULLISH",
+        "confidence": 0.92,
+        "recommended_action": "AGGRESSIVE_LONG_CRYPTO"
+      },
+      {
+        "id": "EXCHANGE_HACK_REGULATORY_CRACKDOWN",
+        "keywords": ["exchange hacked", "crypto ban", "sec lawsuit", "insolvent", "fund drain", "freeze withdrawals"],
+        "primary_effect": "Extreme panic and liquidity drain; cascade liquidations across derivatives.",
+        "affected_assets": ["BTC", "ETH", "ALTCOINS"],
+        "crypto_effect": "BEARISH",
+        "confidence": 0.89,
+        "recommended_action": "IMMEDIATE_EXIT_AND_SHORT"
+      },
+      {
+        "id": "BITCOIN_HALVING_CYCLE",
+        "keywords": ["bitcoin halving", "block reward cut", "miner rewards halved"],
+        "primary_effect": "New daily supply cut in half; historically leads to 12-18 month bull cycle.",
+        "affected_assets": ["BTC", "CRYPTO_MINERS"],
+        "crypto_effect": "BULLISH",
+        "confidence": 0.85,
+        "recommended_action": "ACCUMULATE_SWING"
+      }
+    ],
+    "earnings_corporate": [
+      {
+        "id": "EARNINGS_BEAT",
+        "keywords": ["beats estimates", "record quarterly profit", "guidance raised", "revenue surges", "profit jumps"],
+        "primary_effect": "Strong positive analyst revisions and institutional buying on breakout candles.",
+        "affected_assets": ["INDIVIDUAL_STOCK"],
+        "equities_effect": "BULLISH",
+        "confidence": 0.86,
+        "recommended_action": "INTRADAY_MOMENTUM_BUY"
+      },
+      {
+        "id": "EARNINGS_MISS",
+        "keywords": ["misses estimates", "guidance slashed", "revenue falls", "profit warning", "accounting irregularities"],
+        "primary_effect": "Institutional dumping, gap downs, prolonged consolidation or downtrend.",
+        "affected_assets": ["INDIVIDUAL_STOCK"],
+        "equities_effect": "BEARISH",
+        "confidence": 0.87,
+        "recommended_action": "AVOID_OR_SHORT"
+      }
+    ]
+  }
+}

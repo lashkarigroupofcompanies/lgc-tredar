@@ -1,0 +1,2816 @@
+/* ==========================================================================
+   LGC QUANTUM HACKER TRADING DESK & CYBER OSINT DASHBOARD
+   Aesthetic: Pure Black Night Mode (#000000) with Cyber Neon Green (#00ff66)
+   ========================================================================== */
+
+:root {
+  --hk-bg: #000000;
+  --hk-bg-surface: #04080d;
+  --hk-bg-card: #080e14;
+  --hk-bg-card-hover: #0c1622;
+  --hk-border: #122218;
+  --hk-border-glow: #1a3824;
+  --hk-border-bright: #00ff66;
+  --hk-accent-green: #00ff66;
+  --hk-accent-cyan: #00f2fe;
+  --hk-accent-red: #ff3366;
+  --hk-accent-amber: #ffaa00;
+  --hk-text-primary: #f0fdf4;
+  --hk-text-secondary: #94a3b8;
+  --hk-text-muted: #526371;
+  --hk-font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+
+/* Base resets & theme enforcement */
+body.hacker-night-mode {
+  background-color: #000000 !important;
+  color: var(--hk-text-primary) !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  height: 100vh !important;
+  width: 100vw !important;
+}
+
+#hacker-desk-root {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 10000;
+  background-color: #000000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#app {
+  display: none !important;
+}
+
+/* Master Grid: 50% Left (TV & Cyber Visuals), 50% Right (Trading Desk & HUD) */
+#hacker-workspace {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100vw;
+  height: calc(100vh - 50px);
+  background-color: #000000;
+  gap: 8px;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   TOP COMMAND BAR
+   ========================================================================== */
+#hacker-header {
+  height: 50px;
+  background: #020406;
+  border-bottom: 1px solid #14281a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  box-sizing: border-box;
+  z-index: 100;
+}
+
+.hk-brand-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hk-pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #00ff66;
+  box-shadow: 0 0 10px #00ff66;
+  animation: hkPulse 2s infinite ease-in-out;
+}
+
+@keyframes hkPulse {
+
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.9);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+    box-shadow: 0 0 16px #00ff66;
+  }
+}
+
+.hk-brand-title {
+  font-family: var(--hk-font-mono);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #00ff66;
+  text-shadow: 0 0 8px rgba(0, 255, 102, 0.4);
+}
+
+.hk-brand-tag {
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  background: rgba(0, 255, 102, 0.1);
+  color: #00ff66;
+  border: 1px solid rgba(0, 255, 102, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Centered Search */
+.hk-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #070e14;
+  border: 1px solid #162b1d;
+  border-radius: 6px;
+  padding: 6px 14px;
+  width: 380px;
+  transition: all 0.2s ease;
+}
+
+.hk-search-box:focus-within {
+  border-color: #00ff66;
+  box-shadow: 0 0 12px rgba(0, 255, 102, 0.25);
+}
+
+.hk-search-input {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 12px;
+  font-family: var(--hk-font-mono);
+  outline: none;
+  width: 100%;
+}
+
+.hk-search-input::placeholder {
+  color: #526371;
+}
+
+.hk-search-kbd {
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  background: #0f1c15;
+  color: #00ff66;
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid #1c3d25;
+}
+
+/* Header Right Telemetry & 3D Earth Toggle */
+.hk-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.hk-zulu-clock {
+  font-family: var(--hk-font-mono);
+  font-size: 13px;
+  color: #94a3b8;
+  letter-spacing: 1px;
+}
+
+.hk-earth-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #052212, #083b1c);
+  border: 1px solid #00ff66;
+  color: #00ff66;
+  font-family: var(--hk-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(0, 255, 102, 0.3);
+  transition: all 0.2s ease;
+}
+
+.hk-earth-btn:hover {
+  background: #00ff66;
+  color: #000000;
+  box-shadow: 0 0 20px rgba(0, 255, 102, 0.8);
+}
+
+/* ==========================================================================
+   LEFT COLUMN: TV News Console & Cyber Visuals (50% Width)
+   ========================================================================== */
+#hk-left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* TV Frame */
+.hk-tv-panel {
+  background: #03060a;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  height: 52%;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+}
+
+.hk-panel-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: #060c12;
+  border-bottom: 1px solid #122417;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #00ff66;
+}
+
+.hk-tv-container {
+  flex: 1;
+  position: relative;
+  background: #000000;
+  width: 100%;
+}
+
+.hk-tv-container iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* Channel Buttons Bar */
+.hk-channel-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #04080c;
+  border-top: 1px solid #122417;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.hk-channel-btn {
+  background: #071018;
+  border: 1px solid #152b1e;
+  color: #94a3b8;
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.hk-channel-btn:hover {
+  border-color: #00ff66;
+  color: #f0fdf4;
+}
+
+.hk-channel-btn.active {
+  background: rgba(0, 255, 102, 0.15);
+  border-color: #00ff66;
+  color: #00ff66;
+  box-shadow: 0 0 8px rgba(0, 255, 102, 0.4);
+}
+
+/* Bottom Split: AI News (Left) + 3D Cyber Visualizer (Right) */
+.hk-bottom-left-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  height: 48%;
+  overflow: hidden;
+}
+
+/* AI Intel Card */
+.hk-intel-card {
+  background: #03060a;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hk-intel-feed {
+  flex: 1;
+  padding: 8px 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: var(--hk-font-mono);
+}
+
+.hk-news-item {
+  padding: 6px 8px;
+  background: #050b10;
+  border-left: 2px solid #00ff66;
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #cbd5e1;
+}
+
+.hk-news-item.critical {
+  border-left-color: #ff3366;
+  background: rgba(255, 51, 102, 0.05);
+}
+
+.hk-news-item.elevated {
+  border-left-color: #ffaa00;
+}
+
+.hk-news-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #526371;
+  margin-bottom: 3px;
+}
+
+.hk-news-badge {
+  font-size: 8px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-weight: 700;
+}
+
+.hk-news-badge.crit {
+  background: rgba(255, 51, 102, 0.2);
+  color: #ff3366;
+}
+
+.hk-news-badge.elev {
+  background: rgba(255, 170, 0, 0.2);
+  color: #ffaa00;
+}
+
+.hk-news-badge.info {
+  background: rgba(0, 255, 102, 0.2);
+  color: #00ff66;
+}
+
+/* 3D Cyber Matrix Visualizer */
+.hk-matrix-card {
+  background: #020406;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+#hk-matrix-canvas {
+  width: 100%;
+  height: 100%;
+  background: #000000;
+}
+
+.hk-matrix-overlay {
+  position: absolute;
+  bottom: 6px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--hk-font-mono);
+  font-size: 9px;
+  color: #00ff66;
+  text-shadow: 0 0 5px rgba(0, 255, 102, 0.5);
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   RIGHT COLUMN: Live Candlestick Trading Desk (50% Width)
+   ========================================================================== */
+#hk-right-column {
+  background: #03060a;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+}
+
+/* Market Selector Bar */
+.hk-market-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #060c12;
+  border-bottom: 1px solid #122417;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hk-market-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hk-market-tab {
+  background: #071018;
+  border: 1px solid #152b1e;
+  color: #94a3b8;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hk-market-tab:hover {
+  border-color: #00ff66;
+  color: #ffffff;
+}
+
+.hk-market-tab.active {
+  background: rgba(0, 255, 102, 0.15);
+  border-color: #00ff66;
+  color: #00ff66;
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.35);
+}
+
+/* Asset & Timeframe controls */
+.hk-chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hk-asset-select {
+  background: #071018;
+  border: 1px solid #1b3825;
+  color: #00ff66;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+}
+
+.hk-timeframe-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hk-tf-btn {
+  background: #071018;
+  border: 1px solid #14281a;
+  color: #64748b;
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.hk-tf-btn.active {
+  border-color: #00ff66;
+  color: #00ff66;
+}
+
+/* Main Candlestick Chart Area */
+.hk-chart-area {
+  flex: 1;
+  position: relative;
+  background: #000000;
+  width: 100%;
+}
+
+#hk-candlestick-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Live Agent Mission HUD */
+.hk-agent-hud {
+  padding: 8px 12px;
+  background: #050b10;
+  border-top: 1px solid #122417;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  font-family: var(--hk-font-mono);
+}
+
+.hk-hud-box {
+  background: #081119;
+  border: 1px solid #14281a;
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+
+.hk-hud-label {
+  font-size: 9px;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.hk-hud-val {
+  font-size: 11px;
+  font-weight: 700;
+  color: #f0fdf4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hk-hud-val.green {
+  color: #00ff66;
+}
+
+.hk-hud-val.cyan {
+  color: #00f2fe;
+}
+
+.hk-hud-val.red {
+  color: #ff3366;
+}
+
+.hk-hud-val.amber {
+  color: #ffaa00;
+}
+
+/* ==========================================================================
+   FULLSCREEN 3D EARTH GLOBE MODAL
+   ========================================================================== */
+#hk-earth-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #000000;
+  display: none;
+  flex-direction: column;
+}
+
+#hk-earth-modal.open {
+  display: flex !important;
+}
+
+.hk-modal-header {
+  height: 48px;
+  background: #04080d;
+  border-bottom: 1px solid #14281a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+.hk-modal-title {
+  font-family: var(--hk-font-mono);
+  font-size: 14px;
+  font-weight: 800;
+  color: #00ff66;
+  letter-spacing: 1px;
+}
+
+.hk-modal-exit-btn {
+  background: rgba(255, 51, 102, 0.15);
+  border: 1px solid #ff3366;
+  color: #ff3366;
+  font-family: var(--hk-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hk-modal-exit-btn:hover {
+  background: #ff3366;
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(255, 51, 102, 0.6);
+}
+
+.hk-modal-body {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* --- 50/50 Dual Surveillance Matrix: Standalone 3D Earth (Left 50%) + Live Webcams (Right 50%) --- */
+.hk-earth-webcam-split {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  width: 100vw !important;
+  height: calc(100vh - 48px) !important;
+  background: #000000 !important;
+  overflow: hidden !important;
+}
+
+.hk-earth-panel-col {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: #000000 !important;
+  border-right: 2px solid #14281a !important;
+  overflow: hidden !important;
+}
+
+.hk-globe-wrapper {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  overflow: hidden;
+}
+
+.hk-globe-mount {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+}
+
+.hk-globe-mount canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+.hk-globe-hud-overlay {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  right: 14px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.hk-globe-hud-overlay * {
+  pointer-events: auto;
+}
+
+.hk-globe-hud-left {
+  background: rgba(3, 7, 11, 0.88);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid #14281a;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: var(--hk-font-mono);
+}
+
+.hk-globe-hud-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #00ff66;
+  display: block;
+}
+
+.hk-globe-hud-sub {
+  font-size: 9px;
+  color: #64748b;
+  letter-spacing: 0.5px;
+}
+
+.hk-globe-hud-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(3, 7, 11, 0.88);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid #14281a;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.hk-globe-pill-btn {
+  background: #060e16;
+  border: 1px solid #14281a;
+  color: #94a3b8;
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hk-globe-pill-btn:hover,
+.hk-globe-pill-btn.active {
+  background: rgba(0, 255, 102, 0.15);
+  border-color: #00ff66;
+  color: #00ff66;
+}
+
+.hk-globe-hub-select-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-left: 1px solid #14281a;
+  padding-left: 8px;
+}
+
+.hk-globe-hub-btn {
+  background: #08131e;
+  border: 1px solid #14281a;
+  color: #cbd5e1;
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hk-globe-hub-btn:hover {
+  background: #00ff66;
+  color: #000000;
+  font-weight: 700;
+}
+
+.hk-globe-telemetry-bar {
+  position: absolute;
+  bottom: 12px;
+  left: 14px;
+  right: 14px;
+  z-index: 20;
+  background: rgba(3, 7, 11, 0.88);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid #14281a;
+  border-radius: 6px;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+/* Globe Layer Toggle Panel */
+.hk-layer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  padding: 3px 0;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  color: #94a3b8;
+  transition: color 0.15s;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.hk-layer-toggle:hover {
+  color: #00ff66;
+}
+
+.hk-layer-toggle input[type="checkbox"] {
+  accent-color: #00ff66;
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+}
+
+.hk-webcam-panel-col {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: #03060a !important;
+  overflow: hidden !important;
+}
+
+.hk-webcam-header-bar {
+  height: 40px;
+  background: #060e16;
+  border-bottom: 1px solid #14281a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+}
+
+.hk-webcam-player-area {
+  flex: 1;
+  background: #000000;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.hk-webcam-player-area video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hk-webcam-grid-selector {
+  height: 64px;
+  background: #060e16;
+  border-top: 1px solid #14281a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  overflow-x: auto;
+}
+
+.hk-webcam-thumb-btn {
+  background: #08141f;
+  border: 1px solid #14281a;
+  color: #94a3b8;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.hk-webcam-thumb-btn:hover {
+  background: #0c1e2e;
+  border-color: #00ff66;
+  color: #00ff66;
+}
+
+.hk-webcam-thumb-btn.active {
+  background: #00ff66;
+  border-color: #00ff66;
+  color: #000000;
+  font-weight: 800;
+  box-shadow: 0 0 12px rgba(0, 255, 102, 0.4);
+}
+
+/* ==========================================================================
+   AGENT ARMY MASTER ON/OFF SWITCH & ANALYSIS BUTTON
+   ========================================================================== */
+.hk-master-switch-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.hk-master-switch-btn.off {
+  background: linear-gradient(135deg, #1c080d, #2b0b14);
+  border: 1px solid #ff3366;
+  color: #ff3366;
+  box-shadow: 0 0 10px rgba(255, 51, 102, 0.2);
+}
+
+.hk-master-switch-btn.off:hover {
+  background: #ff3366;
+  color: #ffffff;
+  box-shadow: 0 0 20px rgba(255, 51, 102, 0.7);
+}
+
+.hk-master-switch-btn.on {
+  background: linear-gradient(135deg, #052614, #0a4220);
+  border: 1px solid #00ff66;
+  color: #00ff66;
+  box-shadow: 0 0 16px rgba(0, 255, 102, 0.4);
+}
+
+.hk-master-switch-btn.on:hover {
+  background: #00ff66;
+  color: #000000;
+  box-shadow: 0 0 25px rgba(0, 255, 102, 0.9);
+}
+
+/* Wild Mode Toggle Switch */
+.hk-wild-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.hk-wild-mode-btn.safe {
+  background: linear-gradient(135deg, #071526, #0c2747);
+  border: 1px solid #00f2fe;
+  color: #00f2fe;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+}
+
+.hk-wild-mode-btn.safe:hover {
+  background: #00f2fe;
+  color: #000000;
+  box-shadow: 0 0 20px rgba(0, 242, 254, 0.8);
+}
+
+.hk-wild-mode-btn.wild {
+  background: linear-gradient(135deg, #300c02, #5c1800);
+  border: 1px solid #ff6600;
+  color: #ffaa00;
+  box-shadow: 0 0 16px rgba(255, 102, 0, 0.6);
+  animation: hkWildPulse 1.8s infinite ease-in-out;
+}
+
+@keyframes hkWildPulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 12px rgba(255, 102, 0, 0.5);
+    transform: scale(1);
+  }
+
+  50% {
+    box-shadow: 0 0 24px rgba(255, 102, 0, 0.9);
+    transform: scale(1.02);
+  }
+}
+
+.hk-wild-mode-btn.wild:hover {
+  background: #ff6600;
+  color: #000000;
+  box-shadow: 0 0 28px rgba(255, 102, 0, 1);
+}
+
+/* Market Status Badge (Open vs Closed) */
+.hk-market-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.hk-market-status-pill.open {
+  background: rgba(0, 255, 102, 0.12);
+  color: #00ff66;
+  border: 1px solid rgba(0, 255, 102, 0.4);
+}
+
+.hk-market-status-pill.closed {
+  background: rgba(255, 170, 0, 0.12);
+  color: #ffaa00;
+  border: 1px solid rgba(255, 170, 0, 0.4);
+}
+
+/* ==========================================================================
+   3D EARTH + WEBCAMS SIDE-BY-SIDE DUAL-PANEL LAYOUT
+   ========================================================================== */
+.hk-earth-webcam-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  background: #000000;
+  gap: 2px;
+}
+
+.hk-earth-panel-col {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000000;
+  border-right: 1px solid #14281a;
+}
+
+.hk-webcam-panel-col {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #03060a;
+  overflow: hidden;
+}
+
+.hk-webcam-header-bar {
+  height: 40px;
+  background: #050b12;
+  border-bottom: 1px solid #14281a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #00f2fe;
+}
+
+.hk-webcam-player-area {
+  flex: 1;
+  position: relative;
+  background: #000000;
+  width: 100%;
+}
+
+.hk-webcam-player-area iframe,
+.hk-webcam-player-area video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  object-fit: cover;
+}
+
+.hk-webcam-grid-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #04080e;
+  border-top: 1px solid #14281a;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.hk-webcam-thumb-btn {
+  background: #07121b;
+  border: 1px solid #14281a;
+  color: #94a3b8;
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hk-webcam-thumb-btn:hover {
+  border-color: #00f2fe;
+  color: #00f2fe;
+  background: #0b1a28;
+}
+
+.hk-webcam-thumb-btn.active {
+  border-color: #00ff66;
+  color: #00ff66;
+  background: rgba(0, 255, 102, 0.12);
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
+}
+
+.hk-switch-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.hk-master-switch-btn.off .hk-switch-indicator {
+  background: #ff3366;
+  box-shadow: 0 0 8px #ff3366;
+}
+
+.hk-master-switch-btn.on .hk-switch-indicator {
+  background: #00ff66;
+  box-shadow: 0 0 12px #00ff66;
+  animation: hkPulse 1.5s infinite ease-in-out;
+}
+
+.hk-analysis-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #071526, #0c2747);
+  border: 1px solid #00f2fe;
+  color: #00f2fe;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.25);
+  transition: all 0.2s ease;
+}
+
+.hk-analysis-btn:hover {
+  background: #00f2fe;
+  color: #000000;
+  box-shadow: 0 0 20px rgba(0, 242, 254, 0.8);
+}
+
+/* ==========================================================================
+   POPUP MODAL OVERLAY & WIZARD DIALOG
+   ========================================================================== */
+.hk-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  z-index: 99990;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.hk-modal-overlay.open {
+  display: flex !important;
+}
+
+.hk-wizard-box {
+  background: #04080e;
+  border: 1px solid #00ff66;
+  border-radius: 12px;
+  width: 650px;
+  max-width: 95vw;
+  box-shadow: 0 0 35px rgba(0, 255, 102, 0.25), 0 20px 40px rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: hkModalIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes hkModalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.hk-wizard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #060d16;
+  border-bottom: 1px solid #14281a;
+}
+
+.hk-wizard-title {
+  font-family: var(--hk-font-mono);
+  font-size: 15px;
+  font-weight: 800;
+  color: #00ff66;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hk-wizard-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.hk-wizard-close-btn:hover {
+  color: #ff3366;
+}
+
+/* Stepper Indicator */
+.hk-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: #03070b;
+  border-bottom: 1px solid #102115;
+}
+
+.hk-step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  color: #526371;
+}
+
+.hk-step-item.active {
+  color: #00ff66;
+  font-weight: 700;
+}
+
+.hk-step-item.completed {
+  color: #00f2fe;
+}
+
+.hk-step-bubble {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #0c1822;
+  border: 1px solid #183323;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+.hk-step-item.active .hk-step-bubble {
+  background: #00ff66;
+  color: #000000;
+  border-color: #00ff66;
+  box-shadow: 0 0 10px #00ff66;
+}
+
+.hk-step-item.completed .hk-step-bubble {
+  background: #00f2fe;
+  color: #000000;
+  border-color: #00f2fe;
+}
+
+.hk-wizard-body {
+  padding: 24px;
+  min-height: 260px;
+}
+
+.hk-step-panel {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hk-step-panel.active {
+  display: flex !important;
+}
+
+.hk-panel-title-large {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f0fdf4;
+  margin-bottom: 4px;
+}
+
+.hk-panel-desc {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+/* Option Grid / Cards */
+.hk-option-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.hk-option-card {
+  background: #081018;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hk-option-card:hover {
+  border-color: #00ff66;
+  background: #0c1824;
+  box-shadow: 0 0 12px rgba(0, 255, 102, 0.2);
+}
+
+.hk-option-card.selected {
+  border-color: #00ff66;
+  background: rgba(0, 255, 102, 0.08);
+  box-shadow: 0 0 16px rgba(0, 255, 102, 0.3);
+}
+
+.hk-option-card.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-color: #1a2632;
+}
+
+.hk-option-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--hk-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: #f0fdf4;
+}
+
+.hk-option-card.selected .hk-option-card-header {
+  color: #00ff66;
+}
+
+.hk-coming-soon-badge {
+  font-size: 9px;
+  font-weight: 800;
+  background: #ffaa00;
+  color: #000000;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.hk-option-card-desc {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+/* Wizard Footer Controls */
+.hk-wizard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #060d16;
+  border-top: 1px solid #14281a;
+}
+
+.hk-btn-ghost {
+  background: transparent;
+  border: 1px solid #1e3524;
+  color: #94a3b8;
+  font-family: var(--hk-font-mono);
+  font-size: 12px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hk-btn-ghost:hover {
+  border-color: #00ff66;
+  color: #f0fdf4;
+}
+
+.hk-btn-green {
+  background: #00ff66;
+  border: 1px solid #00ff66;
+  color: #000000;
+  font-family: var(--hk-font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 0 16px rgba(0, 255, 102, 0.4);
+  transition: all 0.2s ease;
+}
+
+.hk-btn-green:hover {
+  background: #33ff85;
+  box-shadow: 0 0 25px rgba(0, 255, 102, 0.8);
+}
+
+/* ==========================================================================
+   STOP CONFIRMATION POPUP
+   ========================================================================== */
+.hk-confirm-box {
+  background: #07090e;
+  border: 1px solid #ff3366;
+  border-radius: 12px;
+  width: 440px;
+  max-width: 90vw;
+  box-shadow: 0 0 35px rgba(255, 51, 102, 0.35);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+
+.hk-confirm-icon {
+  font-size: 38px;
+  filter: drop-shadow(0 0 12px #ff3366);
+}
+
+.hk-confirm-title {
+  font-family: var(--hk-font-mono);
+  font-size: 16px;
+  font-weight: 800;
+  color: #ff3366;
+}
+
+.hk-confirm-text {
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.hk-confirm-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.hk-confirm-actions button {
+  flex: 1;
+  padding: 10px;
+  border-radius: 6px;
+  font-family: var(--hk-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hk-btn-danger {
+  background: #ff3366;
+  border: 1px solid #ff3366;
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(255, 51, 102, 0.5);
+}
+
+.hk-btn-danger:hover {
+  background: #ff527f;
+  box-shadow: 0 0 25px rgba(255, 51, 102, 0.8);
+}
+
+/* ==========================================================================
+   GROWW / ANGEL ONE INSPIRED ANALYSIS & PORTFOLIO COMMAND SCREEN
+   ========================================================================== */
+#hk-analysis-screen {
+  position: fixed;
+  inset: 0;
+  background: #000000;
+  z-index: 99995;
+  display: none;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+#hk-analysis-screen.open {
+  display: flex !important;
+}
+
+.hk-ana-header {
+  height: 56px;
+  background: #03060a;
+  border-bottom: 1px solid #14281a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.hk-ana-title-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.hk-ana-title {
+  font-family: var(--hk-font-mono);
+  font-size: 15px;
+  font-weight: 800;
+  color: #00ff66;
+  letter-spacing: 1px;
+}
+
+.hk-ana-subtitle {
+  font-size: 11px;
+  color: #64748b;
+  background: #071018;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid #122418;
+}
+
+/* Top Mode Switcher (Paper vs Real) */
+.hk-ana-mode-switch {
+  display: flex;
+  align-items: center;
+  background: #070f16;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 4px;
+}
+
+.hk-ana-mode-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hk-ana-mode-btn.active {
+  background: #00ff66;
+  color: #000000;
+  box-shadow: 0 0 12px rgba(0, 255, 102, 0.4);
+}
+
+.hk-ana-mode-btn.coming-soon {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.hk-ana-body {
+  padding: 24px;
+  max-width: 1440px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Row 1: KPI Overview Cards (Groww / Angel One style) */
+.hk-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+}
+
+.hk-kpi-card {
+  background: #04080e;
+  border: 1px solid #14281a;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  transition: all 0.2s ease;
+}
+
+.hk-kpi-card:hover {
+  border-color: #00ff66;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 255, 102, 0.15);
+}
+
+.hk-kpi-title {
+  font-size: 11px;
+  font-family: var(--hk-font-mono);
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hk-kpi-value {
+  font-size: 22px;
+  font-weight: 800;
+  font-family: var(--hk-font-mono);
+  color: #f0fdf4;
+}
+
+.hk-kpi-value.green {
+  color: #00ff66;
+  text-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
+}
+
+.hk-kpi-value.red {
+  color: #ff3366;
+  text-shadow: 0 0 10px rgba(255, 51, 102, 0.3);
+}
+
+.hk-kpi-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Row 2: Charts Grid */
+.hk-charts-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1.5fr 1.2fr;
+  gap: 16px;
+}
+
+.hk-chart-card {
+  background: #04080e;
+  border: 1px solid #14281a;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.hk-chart-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #102115;
+  padding-bottom: 10px;
+}
+
+.hk-chart-card-title {
+  font-family: var(--hk-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: #00ff66;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Evolution Scorecard inside Analysis */
+.hk-evo-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #08141f;
+  border: 1px solid #00f2fe;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.hk-evo-rank {
+  font-family: var(--hk-font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  color: #00f2fe;
+}
+
+.hk-xp-bar-outer {
+  width: 100%;
+  height: 8px;
+  background: #09121a;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #14281a;
+  margin: 6px 0;
+}
+
+.hk-xp-bar-inner {
+  height: 100%;
+  background: linear-gradient(90deg, #00f2fe, #00ff66);
+  border-radius: 4px;
+  box-shadow: 0 0 10px #00ff66;
+  transition: width 0.4s ease;
+}
+
+.hk-adaptation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  max-height: 160px;
+  scrollbar-width: thin;
+}
+
+.hk-adaptation-item {
+  background: #070e15;
+  border-left: 3px solid #00ff66;
+  padding: 8px 10px;
+  border-radius: 0 6px 6px 0;
+  font-size: 11px;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+/* Row 3: Live Positions & Historical Trades Table */
+.hk-table-card {
+  background: #04080e;
+  border: 1px solid #14281a;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.hk-table-tab-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #060d15;
+  border-bottom: 1px solid #14281a;
+}
+
+.hk-table-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hk-table-tab-btn {
+  background: #08121c;
+  border: 1px solid #14281a;
+  color: #64748b;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hk-table-tab-btn.active {
+  background: #00ff66;
+  border-color: #00ff66;
+  color: #000000;
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.4);
+}
+
+.hk-trades-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: var(--hk-font-mono);
+  text-align: left;
+}
+
+.hk-trades-table th {
+  background: #070e16;
+  color: #64748b;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #14281a;
+}
+
+.hk-trades-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #09141d;
+  color: #e2e8f0;
+}
+
+.hk-trades-table tr.clickable-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.hk-trades-table tr.clickable-row:hover td {
+  background: #081726;
+  color: #00ff66;
+}
+
+.hk-badge-side {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.hk-badge-side.buy {
+  background: rgba(0, 255, 102, 0.15);
+  color: #00ff66;
+  border: 1px solid #00ff66;
+}
+
+.hk-badge-side.sell {
+  background: rgba(255, 51, 102, 0.15);
+  color: #ff3366;
+  border: 1px solid #ff3366;
+}
+
+.hk-badge-status {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #0d1a24;
+  color: #94a3b8;
+  border: 1px solid #162b3b;
+}
+
+.hk-badge-status.tp {
+  background: rgba(0, 255, 102, 0.1);
+  color: #00ff66;
+  border-color: rgba(0, 255, 102, 0.4);
+}
+
+.hk-badge-status.sl {
+  background: rgba(255, 51, 102, 0.1);
+  color: #ff3366;
+  border-color: rgba(255, 51, 102, 0.4);
+}
+
+.hk-row-hint {
+  font-size: 10px;
+  color: #00f2fe;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.hk-trades-table tr.clickable-row:hover .hk-row-hint {
+  opacity: 1;
+}
+
+/* ==========================================================================
+   FLEXIBLE CAPITAL DISTRIBUTION & PRESETS (WIZARD STEP 3)
+   ========================================================================== */
+.hk-cap-preset-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.hk-cap-chip {
+  background: #08141f;
+  border: 1px solid #14281a;
+  color: #94a3b8;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hk-cap-chip:hover,
+.hk-cap-chip.active {
+  background: rgba(0, 255, 102, 0.15);
+  border-color: #00ff66;
+  color: #00ff66;
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.2);
+}
+
+.hk-distribution-container {
+  margin-top: 14px;
+  background: #04090e;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.hk-dist-progress-bar {
+  display: flex;
+  height: 8px;
+  width: 100%;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #0a1722;
+  margin: 10px 0;
+}
+
+.hk-dist-segment {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.hk-dist-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+.hk-dist-table th {
+  text-align: left;
+  color: #64748b;
+  font-size: 10px;
+  padding: 4px 8px;
+  border-bottom: 1px solid #0e1e2c;
+}
+
+.hk-dist-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #09141e;
+  color: #cbd5e1;
+}
+
+/* ==========================================================================
+   DUAL GROWTH GRAPHS & MARKET MONEY BREAKDOWN (ANALYSIS SCREEN)
+   ========================================================================== */
+.hk-dual-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 1024px) {
+  .hk-dual-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hk-market-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.hk-market-tab-pill {
+  background: #08131e;
+  border: 1px solid #14281a;
+  color: #94a3b8;
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hk-market-tab-pill:hover,
+.hk-market-tab-pill.active {
+  background: rgba(0, 242, 254, 0.15);
+  border-color: #00f2fe;
+  color: #00f2fe;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+}
+
+.hk-market-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+
+@media (max-width: 1100px) {
+  .hk-market-breakdown-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.hk-market-breakdown-card {
+  background: #04090e;
+  border: 1px solid #14281a;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.hk-market-breakdown-card:hover {
+  border-color: #00ff66;
+  transform: translateY(-2px);
+}
+
+.hk-mb-title {
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hk-mb-val {
+  font-family: var(--hk-font-mono);
+  font-size: 14px;
+  font-weight: 800;
+  color: #f0fdf4;
+}
+
+.hk-mb-sub {
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hk-mb-growth-positive {
+  color: #00ff66;
+  font-weight: 700;
+}
+
+.hk-mb-growth-negative {
+  color: #ff3366;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   1. ECONOMIC CALENDAR & MACRO CATALYSTS CARD (Replaces Earth Hologram)
+   ========================================================================== */
+.hk-calendar-card {
+  background: #04090e;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.hk-calendar-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hk-cal-item {
+  background: #060e16;
+  border: 1px solid #0e1e24;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  transition: all 0.2s ease;
+}
+
+.hk-cal-item:hover {
+  border-color: #00ff66;
+  background: #0a1826;
+}
+
+.hk-cal-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hk-cal-flag {
+  font-size: 14px;
+}
+
+.hk-cal-title-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hk-cal-title {
+  color: #f0fdf4;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hk-cal-time {
+  color: #64748b;
+  font-size: 9px;
+}
+
+.hk-cal-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hk-impact-pill {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.hk-impact-pill.high {
+  background: rgba(255, 51, 102, 0.2);
+  color: #ff3366;
+  border: 1px solid rgba(255, 51, 102, 0.4);
+}
+
+.hk-impact-pill.med {
+  background: rgba(255, 170, 0, 0.2);
+  color: #ffaa00;
+  border: 1px solid rgba(255, 170, 0, 0.4);
+}
+
+.hk-impact-pill.low {
+  background: rgba(0, 242, 254, 0.15);
+  color: #00f2fe;
+  border: 1px solid rgba(0, 242, 254, 0.3);
+}
+
+.hk-cal-forecast {
+  color: #94a3b8;
+  font-size: 10px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   2. ANALYSIS SCREEN NAVIGATION TABS
+   ========================================================================== */
+.hk-ana-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #04090e;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.hk-ana-tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.hk-ana-tab-btn:hover {
+  color: #f0fdf4;
+  background: #0a1826;
+  border-color: #1e3524;
+}
+
+.hk-ana-tab-btn.active {
+  color: #00ff66;
+  background: rgba(0, 255, 102, 0.1);
+  border-color: #00ff66;
+  box-shadow: 0 0 12px rgba(0, 255, 102, 0.25);
+}
+
+/* ==========================================================================
+   3. LIVE P&L METER FOR EVERY TRADE (Active & Closed)
+   ========================================================================== */
+.hk-pnl-meters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.hk-pnl-card {
+  background: #050b12;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.hk-pnl-card:hover {
+  border-color: #00f2fe;
+  box-shadow: 0 0 16px rgba(0, 242, 254, 0.15);
+}
+
+.hk-pnl-card.profit {
+  border-left: 3px solid #00ff66;
+}
+
+.hk-pnl-card.loss {
+  border-left: 3px solid #ff3366;
+}
+
+.hk-pnl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hk-pnl-sym-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hk-pnl-sym {
+  font-family: var(--hk-font-mono);
+  font-size: 14px;
+  font-weight: 800;
+  color: #f0fdf4;
+}
+
+.hk-side-badge {
+  font-family: var(--hk-font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.hk-side-badge.buy {
+  background: rgba(0, 255, 102, 0.15);
+  color: #00ff66;
+  border: 1px solid rgba(0, 255, 102, 0.3);
+}
+
+.hk-side-badge.sell {
+  background: rgba(255, 51, 102, 0.15);
+  color: #ff3366;
+  border: 1px solid rgba(255, 51, 102, 0.3);
+}
+
+.hk-r-multiple {
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #0d2218;
+  color: #00ff66;
+  border: 1px solid #00ff66;
+}
+
+.hk-pnl-val-large {
+  font-family: var(--hk-font-mono);
+  font-size: 16px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hk-pnl-val-large.green {
+  color: #00ff66;
+  text-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
+}
+
+.hk-pnl-val-large.red {
+  color: #ff3366;
+  text-shadow: 0 0 10px rgba(255, 51, 102, 0.3);
+}
+
+/* Visual Progress Meter Bar */
+.hk-meter-track {
+  height: 10px;
+  background: #08121e;
+  border: 1px solid #14281a;
+  border-radius: 5px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+}
+
+.hk-meter-sl-zone {
+  height: 100%;
+  background: rgba(255, 51, 102, 0.35);
+  border-right: 1px dashed #ff3366;
+}
+
+.hk-meter-tp-zone {
+  height: 100%;
+  background: rgba(0, 255, 102, 0.35);
+}
+
+.hk-meter-current-cursor {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 4px;
+  background: #ffffff;
+  box-shadow: 0 0 8px #00f2fe;
+  border-radius: 2px;
+  z-index: 2;
+  transition: left 0.3s ease;
+}
+
+.hk-meter-labels {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--hk-font-mono);
+  font-size: 9px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* ==========================================================================
+   4. RISK MANAGEMENT DASHBOARD IN ANALYSIS
+   ========================================================================== */
+.hk-risk-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+@media (max-width: 1000px) {
+  .hk-risk-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hk-risk-card {
+  background: #050b12;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hk-risk-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.hk-risk-status-pill {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(0, 255, 102, 0.207);
+  color: #00ff66;
+  border: 1px solid #00ff66;
+}
+
+.hk-risk-status-pill.dynamic {
+  background: rgba(0, 242, 254, 0.15);
+  color: #00f2fe;
+  border-color: #00f2fe;
+}
+
+.hk-risk-status-pill.warning {
+  background: rgba(255, 170, 0, 0.15);
+  color: #ffaa00;
+  border-color: #ffaa00;
+}
+
+.hk-risk-status-pill.danger {
+  background: rgba(255, 51, 102, 0.15);
+  color: #ff3366;
+  border-color: #ff3366;
+}
+
+.hk-circuit-gauge-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: #07101a;
+  border-radius: 6px;
+  border: 1px solid #0f241a;
+}
+
+.hk-gauge-bar-outer {
+  height: 12px;
+  background: #08121e;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #14281a;
+  position: relative;
+}
+
+.hk-gauge-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00ff66, #ffaa00, #ff3366);
+  border-radius: 6px;
+  transition: width 0.4s ease;
+}
+
+.hk-risk-rule-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.4;
+  padding: 6px 0;
+  border-bottom: 1px solid #0a1826;
+}
+
+.hk-risk-rule-item:last-child {
+  border-bottom: none;
+}
+
+/* ==========================================================================
+   5. AGENT COLLECTIVE HEALTH & DIAGNOSTICS
+   ========================================================================== */
+.hk-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.hk-agent-health-card {
+  background: #050b12;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.hk-agent-health-card:hover {
+  border-color: #00ff66;
+  box-shadow: 0 0 14px rgba(0, 255, 102, 0.15);
+}
+
+.hk-agent-health-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hk-agent-name {
+  font-family: var(--hk-font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: #f0fdf4;
+}
+
+.hk-agent-status-badge {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 255, 102, 0.15);
+  color: #00ff66;
+  border: 1px solid #00ff66;
+}
+
+.hk-agent-role {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.hk-health-score-bar-outer {
+  height: 6px;
+  background: #08121e;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid #14281a;
+}
+
+.hk-health-score-bar-inner {
+  height: 100%;
+  background: #00ff66;
+  box-shadow: 0 0 8px #00ff66;
+  border-radius: 3px;
+}
+
+.hk-health-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.hk-agent-summary-desc {
+  font-size: 10px;
+  color: #64748b;
+  line-height: 1.4;
+  border-top: 1px solid #0d1e16;
+  padding-top: 6px;
+}
+
+/* ==========================================================================
+   6. SIMPLE LANGUAGE LOGS DRAWER / MODAL
+   ========================================================================== */
+.hk-simple-logs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0;
+}
+
+.hk-simple-log-card {
+  background: #060e16;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.hk-simple-log-card:hover {
+  border-color: #00f2fe;
+}
+
+.hk-simple-log-card.SUCCESS {
+  border-left: 3px solid #00ff66;
+}
+
+.hk-simple-log-card.DEFENSE {
+  border-left: 3px solid #ffaa00;
+}
+
+.hk-simple-log-card.INFO {
+  border-left: 3px solid #00f2fe;
+}
+
+.hk-log-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+}
+
+.hk-log-agent {
+  color: #00f2fe;
+  font-weight: 700;
+}
+
+.hk-log-time {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.hk-log-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f0fdf4;
+}
+
+.hk-log-card-desc {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   7. LEARN & REMEMBER MISTAKES MODAL (Sump Forensic Lab)
+   ========================================================================== */
+#hk-learn-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  z-index: 10001;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+#hk-learn-modal.open {
+  display: flex;
+}
+
+.hk-learn-box {
+  background: #04090e;
+  border: 1px solid #00ff66;
+  border-radius: 12px;
+  width: 800px;
+  max-width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0 50px rgba(0, 255, 102, 0.25);
+  overflow: hidden;
+}
+
+.hk-learn-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #14281a;
+  background: #060e16;
+}
+
+.hk-learn-body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hk-audit-action-banner {
+  background: linear-gradient(135deg, rgba(0, 255, 102, 0.1), rgba(0, 242, 254, 0.1));
+  border: 1px solid #00ff66;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hk-audit-btn-large {
+  background: #00ff66;
+  border: none;
+  color: #000000;
+  font-family: var(--hk-font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 10px 22px;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 0 20px rgba(0, 255, 102, 0.5);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.hk-audit-btn-large:hover {
+  background: #33ff85;
+  box-shadow: 0 0 30px rgba(0, 255, 102, 0.8);
+  transform: translateY(-2px);
+}
+
+.hk-plain-reply-box {
+  background: #06111a;
+  border: 1px solid #00f2fe;
+  border-radius: 8px;
+  padding: 16px;
+  color: #f0fdf4;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.hk-mistake-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 650px) {
+  .hk-mistake-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hk-mistake-card {
+  background: #08121d;
+  border: 1px solid #1a2e22;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hk-mistake-title {
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffaa00;
+}
+
+.hk-mistake-desc {
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.hk-remedy-desc {
+  font-size: 11px;
+  color: #00ff66;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+/* Header Buttons */
+.hk-header-btn-plain {
+  background: #060e16;
+  border: 1px solid #1e3524;
+  border-radius: 6px;
+  color: #94a3b8;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hk-header-btn-plain:hover {
+  border-color: #00f2fe;
+  color: #00f2fe;
+  background: #0a1826;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+}
+
+.hk-learn-nav-btn {
+  background: rgba(0, 255, 102, 0.1);
+  border: 1px solid #00ff66;
+  border-radius: 6px;
+  color: #00ff66;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(0, 255, 102, 0.25);
+  transition: all 0.2s ease;
+}
+
+.hk-learn-nav-btn:hover {
+  background: #00ff66;
+  color: #000000;
+  box-shadow: 0 0 20px rgba(0, 255, 102, 0.6);
+}
