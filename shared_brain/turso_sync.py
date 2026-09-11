@@ -16,9 +16,9 @@ logger = logging.getLogger("TursoSync")
 
 TURSO_CONFIG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "turso_config.json"))
 
-# Default credentials provided by user
+# Default credentials provided by user - embedded for 100% zero-configuration standalone app execution
 DEFAULT_DB_URL = "https://lgc-trader-paras007.aws-ap-northeast-1.turso.io"
-DEFAULT_TOKEN = ""
+DEFAULT_TOKEN = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODkxNDU0MzAsImlkIjoiMDFhMDkxNWQtZTMwMS03ODA0LWI1MTUtNGYyMTJhZmZjYTIxIiwia2lkIjoiN3N3WGpzTXVaaUFFNWtsc3BRRzE0RTVVTGZVUlRuSmM0VGlRcGxOVkx4OCIsInJpZCI6ImQxMDY0Zjg2LWY1ZDEtNDIxMy05YWNhLTE3NmQzNGIzNDk1ZCJ9.LTIo7kYr0JPc-iHxGn-CH5Yyy8GUGwfeqAwVutv8_m0vlZHtUnaxpXHR7rVxCGghOMpi3tjFOy9B9d7gll9tAg"
 
 
 class TursoClient:
