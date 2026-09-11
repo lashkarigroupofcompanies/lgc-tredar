@@ -27,7 +27,7 @@ turso_config.json
 
 # Build outputs
 dist/
-ui/dist/
+# ui/dist is tracked for standalone release packaging
 build/
 out/
 

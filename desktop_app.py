@@ -12,59 +12,92 @@ import logging
 import urllib.request
 import webbrowser
 import subprocess
+import traceback
+import multiprocessing
+
+
+# Windows native message box for critical diagnostics
+def show_native_error(message: str, title: str = "LGC Trader - Startup Error"):
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(0, message, title, 0x10)  # MB_ICONERROR
+    except Exception:
+        print(f"[{title}] {message}", file=sys.stderr)
+
+
+# Persistent logging directory
+LOG_DIR = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "LGCTrader")
+os.makedirs(LOG_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOG_DIR, "app.log")
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger("DesktopLauncher")
 
 # PyInstaller bundle path resolution
 if getattr(sys, 'frozen', False):
     BUNDLE_DIR = sys._MEIPASS
-    os.chdir(os.path.dirname(sys.executable))
 else:
     BUNDLE_DIR = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(BUNDLE_DIR)
 
 sys.path.insert(0, BUNDLE_DIR)
 
 from version import APP_VERSION, APP_NAME
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
-logger = logging.getLogger("DesktopLauncher")
-
-
-def find_free_port(preferred_port=8000):
-    """Checks if preferred_port is open; if not, finds an available one."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        if s.connect_ex(('127.0.0.1', preferred_port)) != 0:
-            return preferred_port
+def find_available_port(preferred_port: int = 8000) -> int:
+    for port in [preferred_port, 8001, 8080, 8888, 9000, 9090]:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('127.0.0.1', port))
+                return port
+        except OSError:
+            continue
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(('127.0.0.1', 0))
         return s.getsockname()[1]
 
 
-SERVER_PORT = find_free_port(8000)
+SERVER_PORT = find_available_port(8000)
 SERVER_URL = f"http://127.0.0.1:{SERVER_PORT}"
+server_error = None
 
 
 def start_uvicorn_server():
-    """Runs the FastAPI server inside a background thread."""
-    import uvicorn
-    from server import app
-    logger.info(f"Starting LGC Quant Engine on {SERVER_URL}...")
-    uvicorn.run(app, host="127.0.0.1", port=SERVER_PORT, log_level="warning")
+    """Runs the FastAPI server inside a background thread with full error handling."""
+    global server_error
+    try:
+        import uvicorn
+        from server import app
+        logger.info(f"Starting LGC Quant Engine on {SERVER_URL}...")
+        config = uvicorn.Config(app, host="127.0.0.1", port=SERVER_PORT, log_level="warning", loop="asyncio")
+        server = uvicorn.Server(config)
+        server.run()
+    except Exception as e:
+        server_error = traceback.format_exc()
+        logger.critical(f"FATAL: Uvicorn server failed to start:\n{server_error}")
 
 
-def wait_for_server(timeout=15.0):
+def wait_for_server(timeout=30.0):
     """Wait until the backend responds to HTTP requests."""
     start_time = time.time()
+    logger.info(f"Waiting for backend to respond at {SERVER_URL}/api/state...")
     while time.time() - start_time < timeout:
+        if server_error:
+            logger.error(f"Server thread encountered fatal error:\n{server_error}")
+            return False
         try:
-            with urllib.request.urlopen(f"{SERVER_URL}/api/state", timeout=1.0) as response:
+            with urllib.request.urlopen(f"{SERVER_URL}/api/state", timeout=1.5) as response:
                 if response.status == 200:
                     logger.info("LGC Quant Engine is live and responding.")
                     return True
         except Exception:
-            time.sleep(0.3)
+            time.sleep(0.5)
     return False
 
 
@@ -94,15 +127,22 @@ def launch_browser_fallback():
 
 
 def main():
+    multiprocessing.freeze_support()
     logger.info(f"Launching {APP_NAME} v{APP_VERSION} Desktop Environment...")
 
     # Start FastAPI backend in background daemon thread
     server_thread = threading.Thread(target=start_uvicorn_server, daemon=True)
     server_thread.start()
 
-    # Wait for server readiness
-    if not wait_for_server(timeout=15.0):
-        logger.error("Timed out waiting for backend server to initialize.")
+    # Wait for server readiness - DO NOT launch window until server is confirmed UP!
+    if not wait_for_server(timeout=30.0):
+        err_msg = server_error or "Backend server did not respond within 30 seconds.\nPlease check firewall and port 8000."
+        logger.error(f"Server failed to start. {err_msg}")
+        show_native_error(
+            f"LGC Trader Engine failed to start:\n\n{err_msg}\n\nLog saved to:\n{LOG_FILE}",
+            "LGC Trader Startup Error"
+        )
+        sys.exit(1)
 
     # Try launching native WebView window
     try:

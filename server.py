@@ -1208,6 +1208,16 @@ static_dir = dist_dir if (os.path.exists(dist_dir) and os.path.exists(os.path.jo
 if not os.path.exists(static_dir):
     os.makedirs(static_dir, exist_ok=True)
 
+# Mount primary assets directory
+assets_dir = os.path.join(static_dir, "assets")
+if os.path.exists(assets_dir):
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+for folder in ["data", "favico", "map-styles", "textures", "developers", "legal", "research-assets"]:
+    f_path = os.path.join(static_dir, folder)
+    if os.path.exists(f_path):
+        app.mount(f"/{folder}", StaticFiles(directory=f_path), name=folder)
+
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
@@ -1215,7 +1225,6 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 def serve_index():
     index_path = os.path.join(static_dir, "index.html")
     if not os.path.exists(index_path):
-        # Fallback to root ui directory if dist/index.html was not found
         fallback_path = os.path.join(ui_dir, "index.html")
         if os.path.exists(fallback_path):
             index_path = fallback_path
@@ -1223,6 +1232,23 @@ def serve_index():
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return JSONResponse(content={"message": "UI under construction. Access /api/state for raw data."})
+
+
+@app.get("/{full_path:path}")
+def serve_static_or_spa(full_path: str):
+    """Fallback handler for root assets or SPA routing."""
+    if full_path.startswith("api/"):
+        return JSONResponse(status_code=404, content={"error": "Not Found"})
+    
+    candidate = os.path.join(static_dir, full_path)
+    if os.path.isfile(candidate):
+        return FileResponse(candidate)
+        
+    index_path = os.path.join(static_dir, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+        
+    return JSONResponse(status_code=404, content={"error": "Not Found"})
 
 
 if __name__ == "__main__":

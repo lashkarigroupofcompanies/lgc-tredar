@@ -37,10 +37,11 @@ jobs:
           node-version: '20'
 
       - name: Build Web Frontend Assets
+        shell: bash
         run: |
           cd ui
-          npm ci --legacy-peer-deps || npm install --legacy-peer-deps
-          npx vite build
+          npm install --legacy-peer-deps
+          npx vite build --config vite.lgc.config.ts
           cd ..
 
       - name: Install Python Dependencies
@@ -51,23 +52,7 @@ jobs:
 
       - name: Build Standalone Executable with PyInstaller
         run: |
-          pyinstaller --noconfirm --onefile --windowed `
-            --name "LGCTrader" `
-            --add-data "ui/dist;ui/dist" `
-            --add-data "agents;agents" `
-            --add-data "shared_brain;shared_brain" `
-            --add-data "version.py;." `
-            --exclude-module "torch" `
-            --exclude-module "matplotlib" `
-            --exclude-module "scipy" `
-            --exclude-module "IPython" `
-            --exclude-module "jupyter" `
-            --hidden-import "uvicorn" `
-            --hidden-import "fastapi" `
-            --hidden-import "pydantic" `
-            --hidden-import "requests" `
-            --hidden-import "webview" `
-            desktop_app.py
+          pyinstaller --noconfirm LGCTrader.spec
 
       - name: Archive Executable as ZIP (For Safe Windows Distribution)
         run: |
