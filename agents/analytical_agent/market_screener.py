@@ -31,56 +31,113 @@ class MultiChartScreener:
     """
 
     UNIVERSE_MAP = {
-        "US_STOCKS": ["NVDA", "AAPL", "MSFT", "TSLA", "AMZN", "META", "GOOGL", "AMD", "SPY"],
-        "INDIAN_STOCKS": ["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "TATAMOTORS", "SBIN"],
-        "CRYPTO": ["BTC", "ETH", "SOL", "BNB", "XRP", "AVAX", "LINK", "NEAR"],
-        "UK_STOCKS": ["BP", "VOD", "AZN", "SHEL", "HSBA"],
-        "EU_STOCKS": ["SAP", "BMW", "AIR", "SIE"],
-        "ASIAN_STOCKS": ["7203.T", "9984.T", "SONY"],
-        "FOREX": ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"],
-        "COMMODITIES": ["GOLD", "CRUDEOIL", "SILVER"],
+        "INDIAN_STOCKS": [
+            # NIFTY 50 Heavyweights
+            "RELIANCE", "TCS", "HDFCBANK", "ICICIBANK", "INFY", "BHARTIARTL", "ITC", "SBIN", "LICI", "LT",
+            "HINDUNILVR", "BAJFINANCE", "HCLTECH", "MARUTI", "SUNPHARMA", "ADANIENT", "KOTAKBANK", "TATAMOTORS",
+            "AXISBANK", "NTPC", "TITAN", "ONGC", "TATACONSUM", "ADANIPORTS", "POWERGRID", "COALINDIA", "BAJAJFINSV",
+            "TATASTEEL", "ULTRACEMCO", "ASIANPAINT", "M&M", "SIEMENS", "JSWSTEEL", "IOC", "GRASIM", "BAJAJ-AUTO",
+            "ZOMATO", "DLF", "TECHM", "WIPRO", "HINDALCO", "NESTLEIND", "BPCL", "EICHERMOT", "DIVISLAB", "CIPLA",
+            "APOLLOHOSP", "TRENT", "BEL", "HAL",
+            # NIFTY Next 50 & Momentum Midcaps
+            "JIOFIN", "VEDL", "TATAPOWER", "CHOLAFIN", "SHRIRAMFIN", "PFC", "REC", "BHEL", "INDIGO", "TVSMOTOR",
+            "HAVELLS", "PIDILITIND", "GAIL", "GODREJCP", "DABUR", "AMBUJACEM", "ABB", "MOTHERSON", "CANBK", "PNB",
+            "BANKBARODA", "POLYCAB", "PERSISTENT", "COFORGE", "MPHASIS", "LTIM", "NAUKRI", "IRCTC", "RVNL", "IRFC",
+            "SUZLON", "PAYTM", "IDEA", "YESBANK", "FEDERALBNK", "IDFCFIRSTB", "ABCAPITAL", "MUTHOOTFIN", "MANAPPURAM",
+            "AUROPHARMA", "LUPIN", "BIOCON", "GLENMARK", "VOLTAS", "CROMPTON", "DIXON", "KALYANKJIL", "MAXHEALTH",
+            "FORTIS", "JUBLFOOD", "DEVYANI"
+        ],
+        "CRYPTO": [
+            "BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "SUI", "LINK",
+            "SHIB", "PEPE", "NEAR", "APT", "DOT", "UNI", "LTC", "ICP", "FET", "RENDER",
+            "INJ", "TIA", "ARB", "OP", "KAS", "FTM", "AAVE", "STX", "BONK", "WIF",
+            "RUNE", "FIL", "ATOM", "ETC", "XLM", "POL", "IMX", "GRT", "FLOKI", "SEI",
+            "TAO", "JUP", "ENA", "PYTH", "PENDLE", "WLD", "ALGO", "QNT", "MANA", "SAND",
+            "GALA", "VET", "THETA"
+        ],
+        "US_STOCKS": [
+            "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA", "BRK-B", "AVGO", "LLY",
+            "JPM", "V", "UNH", "XOM", "MA", "WMT", "JNJ", "PG", "COST", "ORCL",
+            "HD", "AMD", "NFLX", "BAC", "CRM", "CVX", "MRK", "KO", "ADBE", "QCOM",
+            "PLTR", "SMCI", "COIN", "MSTR", "INTC", "ARM", "UBER", "DIS", "BA", "NKE",
+            "IBM", "TXN", "GE", "AMAT", "MU", "CAT", "GS", "MS", "RTX", "HON",
+            "SPY", "QQQ"
+        ],
+        "FOREX": [
+            "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD",
+            "EURGBP", "EURJPY", "GBPJPY", "AUDJPY", "CADJPY", "NZDJPY", "EURCHF", "GBPCHF", "AUDNZD"
+        ],
+        "COMMODITIES": [
+            "GOLD", "SILVER", "CRUDEOIL", "BRENT", "NATGAS", "COPPER", "PLATINUM"
+        ],
+        "UK_STOCKS": ["BP", "VOD", "AZN", "SHEL", "HSBA", "RIO", "GSK", "BATS"],
+        "EU_STOCKS": ["SAP", "BMW", "AIR", "SIE", "ASML", "OR", "MC", "ALV"],
+        "ASIAN_STOCKS": ["7203.T", "9984.T", "SONY", "6758.T", "9983.T"]
     }
 
     WILD_UNIVERSE_MAP = {
-        "US_STOCKS": ["TSLA", "NVDA", "AMD", "SMCI", "COIN", "MSTR", "META"],
-        "INDIAN_STOCKS": ["TATAMOTORS", "ADANIENT", "BAJFINANCE", "TATASTEEL", "RELIANCE"],
-        "CRYPTO": ["SOL", "DOGE", "AVAX", "NEAR", "BTC", "ETH"],
+        "INDIAN_STOCKS": [
+            "TATAMOTORS", "ADANIENT", "BAJFINANCE", "TATASTEEL", "RELIANCE", "JIOFIN", "VEDL", "TATAPOWER",
+            "PFC", "REC", "BHEL", "SUZLON", "PAYTM", "IDEA", "YESBANK", "ZOMATO", "DLF", "TRENT", "BEL", "HAL",
+            "DIXON", "KALYANKJIL", "RVNL", "IRFC", "COFORGE", "PERSISTENT"
+        ],
+        "CRYPTO": [
+            "SOL", "DOGE", "PEPE", "SHIB", "BONK", "WIF", "AVAX", "NEAR", "SUI", "APT",
+            "FET", "RENDER", "INJ", "TIA", "SEI", "TAO", "JUP", "ENA", "BTC", "ETH"
+        ],
+        "US_STOCKS": [
+            "TSLA", "NVDA", "AMD", "SMCI", "COIN", "MSTR", "PLTR", "ARM", "META", "AMZN",
+            "NFLX", "UBER", "INTC", "MU", "QQQ"
+        ],
+        "FOREX": [
+            "GBPUSD", "USDJPY", "GBPJPY", "EURUSD", "AUDUSD", "AUDJPY"
+        ],
+        "COMMODITIES": [
+            "CRUDEOIL", "GOLD", "SILVER", "NATGAS"
+        ],
         "UK_STOCKS": ["BP", "VOD", "AZN", "SHEL"],
-        "EU_STOCKS": ["BMW", "SAP", "AIR"],
-        "FOREX": ["GBPUSD", "USDJPY", "EURUSD"],
-        "COMMODITIES": ["CRUDEOIL", "GOLD", "SILVER"],
+        "EU_STOCKS": ["BMW", "SAP", "AIR", "ASML"],
+        "ASIAN_STOCKS": ["9984.T", "SONY"]
     }
 
     def __init__(self):
         self.calc = OmniCalculator(owner="MarketScreener")
 
-    def get_candidate_universe(self, market: str, mode: str = "CONSERVATIVE_SAFE") -> List[Dict[str, str]]:
+    def get_candidate_universe(self, market: str, mode: str = "CONSERVATIVE_SAFE", limit: Optional[int] = None) -> List[Dict[str, str]]:
         """Returns candidate ticker list for a market or across ALL major markets."""
         market_upper = market.upper()
         candidates = []
         is_wild = "WILD" in mode.upper()
         universe_source = self.WILD_UNIVERSE_MAP if is_wild else self.UNIVERSE_MAP
 
-        if market_upper in ["ALL", "ALL_THREE", "MULTI_MARKET"]:
-            # Cross-market basket
-            us_syms = ["TSLA", "NVDA", "AMD"] if is_wild else ["NVDA", "AAPL", "MSFT", "TSLA"]
-            in_syms = ["TATAMOTORS", "ADANIENT"] if is_wild else ["RELIANCE", "TCS", "HDFCBANK"]
-            cry_syms = ["SOL", "DOGE", "AVAX"] if is_wild else ["BTC", "ETH", "SOL"]
+        if market_upper in ["ALL", "ALL_THREE", "MULTI_MARKET", "TOTAL"]:
+            # Balanced cross-market institutional basket across ALL available markets
+            in_syms = universe_source.get("INDIAN_STOCKS", [])[:35]
+            cry_syms = universe_source.get("CRYPTO", [])[:25]
+            us_syms = universe_source.get("US_STOCKS", [])[:25]
+            fx_syms = universe_source.get("FOREX", [])[:10]
+            comm_syms = universe_source.get("COMMODITIES", [])[:5]
 
-            for sym in us_syms:
-                candidates.append({"market": "US_STOCKS", "symbol": sym})
             for sym in in_syms:
                 candidates.append({"market": "INDIAN_STOCKS", "symbol": sym})
             for sym in cry_syms:
                 candidates.append({"market": "CRYPTO", "symbol": sym})
+            for sym in us_syms:
+                candidates.append({"market": "US_STOCKS", "symbol": sym})
+            for sym in fx_syms:
+                candidates.append({"market": "FOREX", "symbol": sym})
+            for sym in comm_syms:
+                candidates.append({"market": "COMMODITIES", "symbol": sym})
         elif market_upper in universe_source:
             for sym in universe_source[market_upper]:
                 candidates.append({"market": market_upper, "symbol": sym})
         else:
-            fallback = universe_source.get("US_STOCKS", ["NVDA", "TSLA"])
-            for sym in fallback[:5]:
-                candidates.append({"market": "US_STOCKS", "symbol": sym})
+            fallback = universe_source.get("INDIAN_STOCKS", ["RELIANCE", "TCS", "INFY"])
+            for sym in fallback:
+                candidates.append({"market": "INDIAN_STOCKS", "symbol": sym})
 
+        if limit and limit > 0:
+            return candidates[:limit]
         return candidates
 
     def evaluate_chart_predictability(

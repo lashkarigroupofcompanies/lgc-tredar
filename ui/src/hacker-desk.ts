@@ -39,6 +39,8 @@ interface AnalysisTrade {
   status: string;
   exit_reason: string;
   time: string;
+  date?: string;
+  full_timestamp?: string;
   lesson?: string;
 }
 
@@ -212,6 +214,8 @@ export class HackerDeskController {
   public cachedLlmConfig: any = null;
   public cachedTursoStatus: any = null;
   public isLlmEditMode: boolean = false;
+  public activeAnalysisDateFilter: string = 'ALL';
+  public activeAnalysisMarketFilter: string = 'ALL';
 
   public init(): void {
     document.body.classList.add('hacker-night-mode');
@@ -2158,8 +2162,9 @@ export class HackerDeskController {
 
   private async loadAnalysisData(): Promise<void> {
     try {
+      const q = `date_filter=${encodeURIComponent(this.activeAnalysisDateFilter)}&market_filter=${encodeURIComponent(this.activeAnalysisMarketFilter)}`;
       const [resAna, resRisk, resHealth, resLogs] = await Promise.all([
-        fetch('http://localhost:8000/api/analysis').catch(() => null),
+        fetch(`http://localhost:8000/api/analysis?${q}`).catch(() => null),
         fetch('http://localhost:8000/api/risk-dashboard').catch(() => null),
         fetch('http://localhost:8000/api/agent-health').catch(() => null),
         fetch('http://localhost:8000/api/simple-logs').catch(() => null)
@@ -2327,6 +2332,10 @@ export class HackerDeskController {
         <!-- Live P&L Meter for Every Trade (User Request #3) -->
         ${this.renderLivePnlMetersSection(data, cur)}
 
+        <!-- Multi-Market Universe Performance Scorecards & Distribution -->
+        ${this.renderMarketPerformanceScorecards(data, cur)}
+        ${this.renderMarketPnLVisualChart(data, cur)}
+
         <!-- Row 2: Dual Growth Visualizations (Agent Memory Growth + Money Value Growth) -->
         <section class="hk-dual-charts-grid" style="margin-top:14px;">
           <!-- Graph 1: Agent Brain Intelligence & Learning Curve Chart -->
@@ -2442,8 +2451,46 @@ export class HackerDeskController {
         </button>
       </div>
 
+      <!-- Global Filter Bar for Date Period and Market -->
+      ${this.renderAnalysisFilterBar(data)}
+
       ${mainContentHtml}
     `;
+
+    // Filter Buttons (Period & Market)
+    body.querySelectorAll('.hk-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const type = btn.getAttribute('data-type');
+        const val = btn.getAttribute('data-val');
+        if (type === 'date' && val) {
+          this.activeAnalysisDateFilter = val;
+          this.loadAnalysisData();
+        } else if (type === 'market' && val) {
+          this.activeAnalysisMarketFilter = val;
+          this.loadAnalysisData();
+        }
+      });
+    });
+
+    // Custom Date Selector
+    const dateInput = document.getElementById('hkCustomDateSelector') as HTMLInputElement | null;
+    dateInput?.addEventListener('change', () => {
+      if (dateInput && dateInput.value) {
+        this.activeAnalysisDateFilter = dateInput.value;
+        this.loadAnalysisData();
+      }
+    });
+
+    // Daily Timeline Date Chips
+    body.querySelectorAll('.hk-timeline-date-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const d = chip.getAttribute('data-date');
+        if (d) {
+          this.activeAnalysisDateFilter = d;
+          this.loadAnalysisData();
+        }
+      });
+    });
 
     // Sub-tab switching events
     body.querySelectorAll('.hk-ana-tab-btn').forEach(btn => {
@@ -2976,6 +3023,7 @@ export class HackerDeskController {
         <thead>
           <tr>
             <th>TRADE ID</th>
+            <th>DATE & TIME</th>
             <th>SYMBOL</th>
             <th>MARKET</th>
             <th>SIDE</th>
@@ -2984,29 +3032,30 @@ export class HackerDeskController {
             <th>EXIT</th>
             <th>REALIZED P&L</th>
             <th>OUTCOME</th>
-            <th>TIME</th>
             <th>ACTION</th>
           </tr>
         </thead>
         <tbody>
           ${history.map(t => {
             const isProfit = (t.pnl || 0) >= 0;
+            const mktIcon = t.market === 'INDIAN_STOCKS' ? '🇮🇳' : (t.market === 'CRYPTO' ? '🪙' : (t.market === 'US_STOCKS' ? '🇺🇸' : (t.market === 'FOREX' ? '💱' : '⚡')));
+            const timeDisplay = t.date ? `${t.date} ${t.time}` : t.time;
             return `
               <tr class="clickable-row" data-symbol="${t.symbol}" data-market="${t.market}">
-                <td style="color:#64748b;">${t.id}</td>
+                <td style="color:#64748b;font-family:var(--hk-font-mono);font-size:10px;">${t.id}</td>
+                <td style="color:#00f2fe;font-family:var(--hk-font-mono);font-size:10px;white-space:nowrap;">${timeDisplay}</td>
                 <td style="font-weight:700;color:#00ff66;">${t.symbol}</td>
-                <td><span class="hk-badge-status">${t.market}</span></td>
+                <td><span class="hk-badge-status" style="font-size:10px;">${mktIcon} ${t.market.replace('_STOCKS', '')}</span></td>
                 <td><span class="hk-badge-side ${t.side.toLowerCase()}">${t.side}</span></td>
-                <td>${t.strategy}</td>
+                <td style="font-size:10px;">${t.strategy}</td>
                 <td>${cur}${t.entry_price.toLocaleString('en-IN')}</td>
                 <td>${cur}${t.exit_price.toLocaleString('en-IN')}</td>
-                <td style="font-weight:700;color:${isProfit ? '#00ff66' : '#ff3366'};">
+                <td style="font-weight:700;color:${isProfit ? '#00ff66' : '#ff3366'};font-family:var(--hk-font-mono);">
                   ${isProfit ? '+' : ''}${cur}${t.pnl.toLocaleString('en-IN')} (${isProfit ? '+' : ''}${t.pnl_percent}%)
                 </td>
                 <td>
                   <span class="hk-badge-status ${isProfit ? 'tp' : 'sl'}">${t.exit_reason || (isProfit ? 'TAKE PROFIT' : 'STOP LOSS')}</span>
                 </td>
-                <td style="color:#64748b;">${t.time}</td>
                 <td><span class="hk-row-hint">📈 View Chart →</span></td>
               </tr>
             `;
@@ -3247,6 +3296,232 @@ export class HackerDeskController {
     `;
   }
 
+  // --- Global Time Period & Multi-Market Filter Control Console ---
+  private renderAnalysisFilterBar(data: any): string {
+    const s = data.summary || {};
+    const todayCount = s.trades_today_count || 0;
+    const allCount = s.total_trades_all_time || s.total_trades || 0;
+    const curDate = this.activeAnalysisDateFilter;
+    const curMkt = this.activeAnalysisMarketFilter;
+
+    return `
+      <div class="hk-ana-filter-console" style="margin-bottom:14px;">
+        <!-- Left: Date Range Filter Pills -->
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span style="font-size:11px;color:#00f2fe;font-weight:700;letter-spacing:0.5px;font-family:var(--hk-font-mono);display:flex;align-items:center;gap:4px;">
+            <span>📅</span> PERIOD:
+          </span>
+          <button class="hk-filter-btn ${curDate === 'ALL' ? 'active' : ''}" data-type="date" data-val="ALL">
+            ⚡ All-Time (${allCount})
+          </button>
+          <button class="hk-filter-btn ${curDate === 'TODAY' ? 'active' : ''}" data-type="date" data-val="TODAY">
+            ☀️ Today (${todayCount})
+          </button>
+          <button class="hk-filter-btn ${curDate === 'YESTERDAY' ? 'active' : ''}" data-type="date" data-val="YESTERDAY">
+            ⏮️ Yesterday
+          </button>
+          <button class="hk-filter-btn ${curDate === '7D' ? 'active' : ''}" data-type="date" data-val="7D">
+            🗓️ Last 7 Days
+          </button>
+          <div style="display:flex;align-items:center;gap:4px;margin-left:4px;">
+            <span style="font-size:10px;color:#64748b;">Custom Date:</span>
+            <input type="date" id="hkCustomDateSelector" style="background:#0a1a24;border:1px solid #143828;color:#00ff66;font-family:var(--hk-font-mono);font-size:11px;padding:3px 8px;border-radius:4px;outline:none;" value="${curDate.includes('-') ? curDate : ''}" />
+          </div>
+        </div>
+
+        <!-- Right: Multi-Market Quick Filter Switcher -->
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span style="font-size:11px;color:#00ff66;font-weight:700;letter-spacing:0.5px;font-family:var(--hk-font-mono);display:flex;align-items:center;gap:4px;">
+            <span>🌍</span> MARKET:
+          </span>
+          <button class="hk-filter-btn ${curMkt === 'ALL' ? 'active' : ''}" data-type="market" data-val="ALL">
+            🌐 All
+          </button>
+          <button class="hk-filter-btn ${curMkt === 'INDIAN_STOCKS' ? 'active' : ''}" data-type="market" data-val="INDIAN_STOCKS">
+            🇮🇳 India
+          </button>
+          <button class="hk-filter-btn ${curMkt === 'CRYPTO' ? 'active' : ''}" data-type="market" data-val="CRYPTO">
+            🪙 Crypto
+          </button>
+          <button class="hk-filter-btn ${curMkt === 'US_STOCKS' ? 'active' : ''}" data-type="market" data-val="US_STOCKS">
+            🇺🇸 US
+          </button>
+          <button class="hk-filter-btn ${curMkt === 'FOREX' ? 'active' : ''}" data-type="market" data-val="FOREX">
+            💱 Forex
+          </button>
+          <button class="hk-filter-btn ${curMkt === 'COMMODITIES' ? 'active' : ''}" data-type="market" data-val="COMMODITIES">
+            ⚡ Comm
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  // --- Multi-Market Deep-Dive Scorecards Component ---
+  private renderMarketPerformanceScorecards(data: any, cur: string): string {
+    const ana = data.analytics || {};
+    const tbm = ana.trades_by_market || {};
+
+    const marketConfigs = [
+      { key: 'INDIAN_STOCKS', flag: '🇮🇳', name: 'Indian Equities (NSE)', universeCount: 101, sub: 'NIFTY 50 + Midcaps' },
+      { key: 'CRYPTO', flag: '🪙', name: 'Global Crypto', universeCount: 53, sub: 'BTC, ETH, SOL & Top Alts' },
+      { key: 'US_STOCKS', flag: '🇺🇸', name: 'US Equities (NASDAQ)', universeCount: 52, sub: 'NVDA, TSLA, Apple & Tech' },
+      { key: 'FOREX', flag: '💱', name: 'Global Forex', universeCount: 16, sub: 'EUR, GBP, JPY & Pairs' },
+      { key: 'COMMODITIES', flag: '⚡', name: 'Commodities', universeCount: 7, sub: 'Gold, Silver & Crude' }
+    ];
+
+    return `
+      <section style="margin-top:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:16px;">🌐</span>
+            <span style="font-family:var(--hk-font-mono);font-size:13px;font-weight:800;color:#f0fdf4;letter-spacing:0.5px;">
+              REAL-WORLD ASSET UNIVERSE & PERFORMANCE SCORECARDS
+            </span>
+            <span style="font-size:10px;color:#00f2fe;border:1px solid rgba(0,242,254,0.3);padding:2px 8px;border-radius:10px;font-family:var(--hk-font-mono);">
+              229 ACTIVE ASSETS MONITORED
+            </span>
+          </div>
+          <div style="font-size:11px;color:#64748b;font-family:var(--hk-font-mono);">
+            Period: <span style="color:#00ff66;font-weight:700;">${this.activeAnalysisDateFilter}</span> • Market: <span style="color:#00f2fe;font-weight:700;">${this.activeAnalysisMarketFilter}</span>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:12px;">
+          ${marketConfigs.map(m => {
+            const stats = tbm[m.key] || { total_trades: 0, wins: 0, losses: 0, win_rate: 0.0, total_pnl: 0.0, trades_today: 0, pnl_today: 0.0 };
+            const isPos = (stats.total_pnl || 0) >= 0;
+            const isSelected = this.activeAnalysisMarketFilter === m.key;
+
+            return `
+              <div class="hk-mkt-scorecard" style="background:${isSelected ? 'linear-gradient(135deg, #071e22, #03080d)' : '#050f17'};border:1px solid ${isSelected ? '#00f2fe' : '#142838'};border-radius:8px;padding:14px;box-shadow:${isSelected ? '0 0 15px rgba(0,242,254,0.2)' : 'none'};transition:all 0.2s ease;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:18px;">${m.flag}</span>
+                    <div>
+                      <div style="font-family:var(--hk-font-mono);font-size:12px;font-weight:700;color:#f0fdf4;">${m.name}</div>
+                      <div style="font-size:9px;color:#64748b;">${m.universeCount} Assets • ${m.sub}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin:10px 0 6px 0;">
+                  <div>
+                    <div style="font-size:9px;color:#94a3b8;font-family:var(--hk-font-mono);">NET REALIZED P&L</div>
+                    <div style="font-family:var(--hk-font-mono);font-size:17px;font-weight:900;color:${isPos ? '#00ff66' : '#ff3366'};">
+                      ${isPos ? '+' : ''}${cur}${Math.abs(stats.total_pnl || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:9px;color:#94a3b8;font-family:var(--hk-font-mono);">WIN RATE</div>
+                    <div style="font-family:var(--hk-font-mono);font-size:14px;font-weight:800;color:${stats.win_rate >= 50 ? '#00ff66' : (stats.total_trades > 0 ? '#ffaa00' : '#64748b')};">
+                      ${stats.win_rate.toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex;align-items:center;justify-content:space-between;font-size:10px;color:#94a3b8;border-top:1px solid #0e1e2c;padding-top:6px;font-family:var(--hk-font-mono);">
+                  <span>Trades: <strong style="color:#00f2fe;">${stats.total_trades}</strong> (${stats.wins}W / ${stats.losses}L)</span>
+                  <span>Today: <strong style="color:${(stats.pnl_today || 0) >= 0 ? '#00ff66' : '#ff3366'};">${stats.trades_today} trd</strong></span>
+                </div>
+
+                ${stats.best_trade ? `
+                  <div style="margin-top:6px;font-size:9px;color:#00ff66;font-family:var(--hk-font-mono);background:rgba(0,255,102,0.06);padding:3px 6px;border-radius:4px;display:flex;justify-content:space-between;">
+                    <span>Top Winner:</span>
+                    <span><strong>${stats.best_trade.symbol}</strong> (+${cur}${stats.best_trade.pnl.toLocaleString('en-IN')})</span>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </section>
+    `;
+  }
+
+  // --- Visual Multi-Market Comparison Chart ---
+  private renderMarketPnLVisualChart(data: any, cur: string): string {
+    const ana = data.analytics || {};
+    const tbm = ana.trades_by_market || {};
+    const markets = [
+      { key: 'INDIAN_STOCKS', label: '🇮🇳 India', color: '#ff9933' },
+      { key: 'CRYPTO', label: '🪙 Crypto', color: '#00f2fe' },
+      { key: 'US_STOCKS', label: '🇺🇸 US', color: '#38bdf8' },
+      { key: 'FOREX', label: '💱 Forex', color: '#a78bfa' },
+      { key: 'COMMODITIES', label: '⚡ Comm', color: '#eab308' }
+    ];
+
+    const totalTrades = Object.values(tbm).reduce((acc: number, m: any) => acc + (m.total_trades || 0), 0) || 1;
+
+    return `
+      <section class="hk-chart-card" style="margin-top:14px;">
+        <div class="hk-chart-card-header">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:15px;">📊</span>
+            <span class="hk-chart-card-title">MULTI-MARKET VOLUME & CAPITAL GROWTH DISTRIBUTION</span>
+          </div>
+          <span style="font-size:10px;color:#00ff66;font-family:var(--hk-font-mono);">
+            ACTIVE UNIVERSE DIVERSIFICATION
+          </span>
+        </div>
+
+        <!-- Visual Multi-Market Volume Share Bar -->
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;font-family:var(--hk-font-mono);margin-bottom:6px;">
+            <span>Trade Volume Share Across Markets</span>
+            <span>${totalTrades} Total Executions</span>
+          </div>
+          <div style="height:12px;background:#08141e;border-radius:6px;overflow:hidden;display:flex;border:1px solid #142838;">
+            ${markets.map(m => {
+              const count = tbm[m.key]?.total_trades || 0;
+              const pct = (count / totalTrades) * 100;
+              if (pct === 0) return '';
+              return `<div style="width:${pct}%;background:${m.color};height:100%;" title="${m.label}: ${count} trades (${pct.toFixed(1)}%)"></div>`;
+            }).join('')}
+            ${totalTrades === 1 && !Object.values(tbm).some((m: any) => m.total_trades > 0) ? `<div style="width:100%;background:#142838;" title="No trades yet"></div>` : ''}
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:10px;font-family:var(--hk-font-mono);">
+            ${markets.map(m => {
+              const count = tbm[m.key]?.total_trades || 0;
+              const pnl = tbm[m.key]?.total_pnl || 0.0;
+              return `
+                <div style="display:flex;align-items:center;gap:5px;">
+                  <span style="width:8px;height:8px;border-radius:2px;background:${m.color};display:inline-block;"></span>
+                  <span style="color:#94a3b8;">${m.label}:</span>
+                  <span style="color:#f0fdf4;font-weight:700;">${count}</span>
+                  <span style="color:${pnl >= 0 ? '#00ff66' : '#ff3366'};font-size:9px;">(${pnl >= 0 ? '+' : ''}${cur}${Math.abs(pnl).toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Daily Activity Timeline List -->
+        ${ana.trades_by_date && Object.keys(ana.trades_by_date).length > 0 ? `
+          <div style="border-top:1px solid #102434;padding-top:10px;margin-top:8px;">
+            <div style="font-size:10px;color:#64748b;font-family:var(--hk-font-mono);margin-bottom:6px;">
+              DAILY EXECUTION TIMELINE (CLICK DATE TO FILTER):
+            </div>
+            <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;">
+              ${Object.values(ana.trades_by_date).map((d: any) => {
+                const isSelected = this.activeAnalysisDateFilter === d.date;
+                const isDPos = (d.pnl || 0) >= 0;
+                return `
+                  <button class="hk-timeline-date-chip ${isSelected ? 'active' : ''}" data-date="${d.date}" style="background:${isSelected ? '#00f2fe' : '#081722'};color:${isSelected ? '#000000' : '#f0fdf4'};border:1px solid ${isSelected ? '#00f2fe' : '#142838'};border-radius:6px;padding:6px 10px;cursor:pointer;font-family:var(--hk-font-mono);font-size:10px;text-align:left;flex-shrink:0;">
+                    <div style="font-weight:700;">${d.date}</div>
+                    <div style="font-size:9px;color:${isSelected ? '#000000' : (isDPos ? '#00ff66' : '#ff3366')};">
+                      ${d.trades_count} Trades • ${isDPos ? '+' : ''}${cur}${Math.abs(d.pnl).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                    </div>
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </section>
+    `;
+  }
+
   // --- Dedicated Real Executed Trades Laboratory (Open-Ended & Scalable) ---
   private renderExecutedTradesSection(data: any, cur: string): string {
     const history: AnalysisTrade[] = data.trade_history || [];
@@ -3352,6 +3627,10 @@ export class HackerDeskController {
           </div>
         </section>
 
+        <!-- Multi-Market Universe Performance Scorecards & Distribution -->
+        ${this.renderMarketPerformanceScorecards(data, cur)}
+        ${this.renderMarketPnLVisualChart(data, cur)}
+
         <!-- Executed Trades Breakdown & Exit Harvesting Table -->
         <section class="hk-table-card">
           <div class="hk-table-tab-bar">
@@ -3367,7 +3646,7 @@ export class HackerDeskController {
 
           ${totalExecuted === 0 ? `
             <div style="padding:45px;text-align:center;color:#64748b;font-family:var(--hk-font-mono);font-size:12px;">
-              No trades executed yet. Start the Agent Army to begin filling the real executed trades ledger.
+              No trades executed yet for period: <span style="color:#00f2fe;">${this.activeAnalysisDateFilter}</span> • Market: <span style="color:#00ff66;">${this.activeAnalysisMarketFilter}</span>. Start the Agent Army to begin filling the real executed trades ledger.
             </div>
           ` : `
             <div style="overflow-x:auto;">
@@ -3376,6 +3655,7 @@ export class HackerDeskController {
                   <tr>
                     <th>#</th>
                     <th>TRADE ID</th>
+                    <th>DATE & TIME</th>
                     <th>SYMBOL</th>
                     <th>MARKET</th>
                     <th>SIDE</th>
@@ -3384,30 +3664,31 @@ export class HackerDeskController {
                     <th>EXIT</th>
                     <th>REALIZED P&L</th>
                     <th>HARVEST OUTCOME</th>
-                    <th>TIME</th>
                     <th>AI LESSON / VERDICT</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${history.map((t, idx) => {
                     const isProfit = (t.pnl || 0) >= 0;
+                    const mktIcon = t.market === 'INDIAN_STOCKS' ? '🇮🇳' : (t.market === 'CRYPTO' ? '🪙' : (t.market === 'US_STOCKS' ? '🇺🇸' : (t.market === 'FOREX' ? '💱' : '⚡')));
+                    const timeDisplay = t.date ? `${t.date} ${t.time}` : t.time;
                     return `
                       <tr class="clickable-row" data-symbol="${t.symbol}" data-market="${t.market}">
-                        <td style="color:#64748b;font-family:var(--hk-font-mono);">${idx + 1}</td>
-                        <td style="color:#64748b;">${t.id}</td>
+                        <td style="color:#64748b;font-family:var(--hk-font-mono);font-size:10px;">${idx + 1}</td>
+                        <td style="color:#64748b;font-family:var(--hk-font-mono);font-size:10px;">${t.id}</td>
+                        <td style="color:#00f2fe;font-family:var(--hk-font-mono);font-size:10px;white-space:nowrap;">${timeDisplay}</td>
                         <td style="font-weight:700;color:#00ff66;">${t.symbol}</td>
-                        <td><span class="hk-badge-status">${t.market}</span></td>
+                        <td><span class="hk-badge-status" style="font-size:10px;">${mktIcon} ${t.market.replace('_STOCKS', '')}</span></td>
                         <td><span class="hk-badge-side ${t.side.toLowerCase()}">${t.side}</span></td>
-                        <td>${t.strategy}</td>
+                        <td style="font-size:10px;">${t.strategy}</td>
                         <td>${cur}${t.entry_price.toLocaleString('en-IN')}</td>
                         <td>${cur}${t.exit_price.toLocaleString('en-IN')}</td>
-                        <td style="font-weight:700;color:${isProfit ? '#00ff66' : '#ff3366'};">
+                        <td style="font-weight:700;color:${isProfit ? '#00ff66' : '#ff3366'};font-family:var(--hk-font-mono);">
                           ${isProfit ? '+' : ''}${cur}${t.pnl.toLocaleString('en-IN')} (${isProfit ? '+' : ''}${t.pnl_percent}%)
                         </td>
                         <td>
                           <span class="hk-badge-status ${isProfit ? 'tp' : 'sl'}">${t.exit_reason || (isProfit ? 'TAKE PROFIT' : 'STOP LOSS')}</span>
                         </td>
-                        <td style="color:#64748b;">${t.time}</td>
                         <td style="font-size:10px;color:#94a3b8;max-width:260px;white-space:normal;line-height:1.3;">
                           ${t.lesson || 'Logged into Evolution Memory'}
                         </td>

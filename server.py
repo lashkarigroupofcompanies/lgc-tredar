@@ -144,18 +144,46 @@ def reset_system_state(req: Optional[ResetStateRequest] = None):
 
 
 @app.get("/api/analysis")
-def get_analysis_data():
+def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optional[str] = "ALL"):
     """Groww / Angel One style clean analytics and portfolio metrics in simple trader terms."""
+    from datetime import datetime, date, timedelta
     core._refresh_state_snapshots()
     broker = core.execution_agent.broker
     trades = list(broker.trade_history)
     post_mortems = core.evolution_agent.state.get("recent_trade_post_mortems", [])
     
-    combined_trades = []
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    seven_days_ago_str = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+
+    all_combined_trades = []
+    available_dates_set = set([today_str])
+
     for i, t in enumerate(trades):
         pm = post_mortems[i] if i < len(post_mortems) else {}
         pnl = float(t.get("realized_pnl", t.get("pnl", 0.0)))
-        combined_trades.append({
+        raw_time = str(t.get("exit_time", t.get("entry_time", "")))
+        
+        # Parse or default date
+        trade_date = today_str
+        trade_time = datetime.now().strftime("%H:%M:%S")
+        if raw_time:
+            if " " in raw_time:
+                parts = raw_time.split(" ")
+                if len(parts) >= 2 and "-" in parts[0]:
+                    trade_date = parts[0]
+                    trade_time = parts[1]
+            elif "T" in raw_time:
+                parts = raw_time.split("T")
+                trade_date = parts[0]
+                trade_time = parts[1][:8]
+            elif ":" in raw_time and "-" not in raw_time:
+                trade_time = raw_time
+                trade_date = today_str
+
+        available_dates_set.add(trade_date)
+
+        all_combined_trades.append({
             "id": t.get("trade_id", f"trade_{i+1}"),
             "symbol": t.get("symbol", "NIFTY 50"),
             "market": t.get("market", "INDIAN_STOCKS"),
@@ -168,9 +196,80 @@ def get_analysis_data():
             "pnl_percent": round(pnl / max(1.0, float(t.get("entry_price", 1.0)) * float(t.get("shares", 1.0))) * 100, 2),
             "status": t.get("status", "CLOSED"),
             "exit_reason": t.get("exit_reason", pm.get("exit_reason", "TAKE_PROFIT" if pnl > 0 else "STOP_LOSS")),
-            "time": t.get("exit_time", t.get("entry_time", time.strftime("%H:%M:%S"))),
+            "date": trade_date,
+            "time": trade_time,
+            "full_timestamp": f"{trade_date} {trade_time}",
             "lesson": pm.get("verdict", "")
         })
+
+    # Build comprehensive per-market & per-date analytics from all trades
+    trades_by_date = {}
+    known_markets = [
+        ("INDIAN_STOCKS", "🇮🇳 Indian Equities (NSE/BSE)"),
+        ("CRYPTO", "🪙 Global Crypto (BTC/ETH/SOL)"),
+        ("US_STOCKS", "🇺🇸 US Equities (NASDAQ/NYSE)"),
+        ("FOREX", "💱 Global Forex (EUR/GBP/JPY)"),
+        ("COMMODITIES", "⚡ Commodities (Gold/Crude)")
+    ]
+
+    trades_by_market = {}
+    for m_key, m_label in known_markets:
+        m_trades = [t for t in all_combined_trades if t.get("market") == m_key]
+        m_wins = [t for t in m_trades if t["pnl"] > 0]
+        m_losses = [t for t in m_trades if t["pnl"] < 0]
+        m_pnl = sum(t["pnl"] for t in m_trades)
+        m_today = [t for t in m_trades if t["date"] == today_str]
+        
+        best = max(m_trades, key=lambda x: x["pnl"], default=None)
+        worst = min(m_trades, key=lambda x: x["pnl"], default=None)
+
+        trades_by_market[m_key] = {
+            "key": m_key,
+            "label": m_label,
+            "total_trades": len(m_trades),
+            "wins": len(m_wins),
+            "losses": len(m_losses),
+            "win_rate": round((len(m_wins) / max(1, len(m_trades))) * 100.0, 1) if m_trades else 0.0,
+            "total_pnl": round(m_pnl, 2),
+            "avg_trade_pnl": round(m_pnl / max(1, len(m_trades)), 2) if m_trades else 0.0,
+            "trades_today": len(m_today),
+            "pnl_today": round(sum(t["pnl"] for t in m_today), 2),
+            "best_trade": {"symbol": best["symbol"], "pnl": round(best["pnl"], 2)} if best else None,
+            "worst_trade": {"symbol": worst["symbol"], "pnl": round(worst["pnl"], 2)} if worst else None
+        }
+
+    for t in all_combined_trades:
+        d = t["date"]
+        if d not in trades_by_date:
+            trades_by_date[d] = {"date": d, "trades_count": 0, "pnl": 0.0, "wins": 0, "losses": 0}
+        trades_by_date[d]["trades_count"] += 1
+        trades_by_date[d]["pnl"] = round(trades_by_date[d]["pnl"] + t["pnl"], 2)
+        if t["pnl"] > 0:
+            trades_by_date[d]["wins"] += 1
+        elif t["pnl"] < 0:
+            trades_by_date[d]["losses"] += 1
+
+    for d in trades_by_date:
+        w = trades_by_date[d]["wins"]
+        tot = trades_by_date[d]["trades_count"]
+        trades_by_date[d]["win_rate"] = round((w / max(1, tot)) * 100.0, 1)
+
+    # Filter trades for view based on date_filter and market_filter
+    df_upper = (date_filter or "ALL").upper()
+    mf_upper = (market_filter or "ALL").upper()
+
+    filtered_trades = all_combined_trades
+    if df_upper == "TODAY":
+        filtered_trades = [t for t in filtered_trades if t["date"] == today_str]
+    elif df_upper == "YESTERDAY":
+        filtered_trades = [t for t in filtered_trades if t["date"] == yesterday_str]
+    elif df_upper == "7D":
+        filtered_trades = [t for t in filtered_trades if t["date"] >= seven_days_ago_str]
+    elif df_upper != "ALL" and "-" in df_upper:
+        filtered_trades = [t for t in filtered_trades if t["date"] == df_upper]
+
+    if mf_upper not in ["ALL", "TOTAL"]:
+        filtered_trades = [t for t in filtered_trades if t.get("market") == mf_upper]
 
     open_positions = []
     for pos_id, pos in broker.open_positions.items():
@@ -195,14 +294,14 @@ def get_analysis_data():
     total_pnl = current_equity - starting_cap
     total_pnl_pct = round((total_pnl / max(1.0, starting_cap)) * 100.0, 2)
     
-    wins = [t for t in combined_trades if t["pnl"] > 0]
-    losses = [t for t in combined_trades if t["pnl"] < 0]
-    total_closed = len(combined_trades)
+    wins = [t for t in filtered_trades if t["pnl"] > 0]
+    losses = [t for t in filtered_trades if t["pnl"] < 0]
+    total_closed = len(filtered_trades)
     win_rate = round((len(wins) / max(1, total_closed)) * 100.0, 1) if total_closed > 0 else 0.0
 
     equity_curve = [{"point": 0, "equity": starting_cap, "pnl": 0.0, "label": "Start"}]
     running_eq = starting_cap
-    for idx, t in enumerate(combined_trades):
+    for idx, t in enumerate(filtered_trades):
         running_eq += t["pnl"]
         equity_curve.append({
             "point": idx + 1,
@@ -212,7 +311,7 @@ def get_analysis_data():
         })
 
     market_counts = {}
-    for t in combined_trades + open_positions:
+    for t in all_combined_trades + open_positions:
         m = t.get("market", "INDIAN_STOCKS")
         market_counts[m] = market_counts.get(m, 0) + 1
     
@@ -235,15 +334,9 @@ def get_analysis_data():
         }
 
     market_breakdown = []
-    known_markets = [
-        ("INDIAN_STOCKS", "🇮🇳 Indian Equities (NSE/BSE)"),
-        ("CRYPTO", "🪙 Global Crypto (BTC/ETH/SOL)"),
-        ("US_STOCKS", "🇺🇸 US Equities (NASDAQ/NYSE)"),
-        ("COMMODITIES", "⚡ Commodities (Gold/Crude)")
-    ]
     for m_key, m_label in known_markets:
         alloc = float(alloc_map.get(m_key, starting_cap / len(known_markets)))
-        m_closed = [t for t in combined_trades if t.get("market") == m_key]
+        m_closed = [t for t in all_combined_trades if t.get("market") == m_key]
         m_open = [p for p in open_positions if p.get("market") == m_key]
         
         realized = sum(t["pnl"] for t in m_closed)
@@ -272,28 +365,42 @@ def get_analysis_data():
             "equity_curve": m_curve
         })
 
+    today_trades_all = [t for t in all_combined_trades if t["date"] == today_str]
+
     return JSONResponse(content={
         "summary": {
             "currency": "₹",
             "total_pnl": round(total_pnl, 2),
             "total_pnl_percent": total_pnl_pct,
+            "filtered_pnl": round(sum(t["pnl"] for t in filtered_trades), 2),
             "current_capital": round(current_equity, 2),
             "starting_capital": round(starting_cap, 2),
             "available_cash": round(broker.balance, 2),
             "margin_used": round(max(0.0, current_equity - broker.balance), 2),
             "win_rate": win_rate,
             "total_trades": total_closed,
+            "total_trades_all_time": len(all_combined_trades),
+            "trades_today_count": len(today_trades_all),
+            "pnl_today": round(sum(t["pnl"] for t in today_trades_all), 2),
             "wins_count": len(wins),
             "losses_count": len(losses),
             "open_positions_count": len(open_positions),
             "is_running": core.is_running,
-            "active_market": core.selected_market
+            "active_market": core.selected_market,
+            "active_date_filter": df_upper,
+            "active_market_filter": mf_upper
+        },
+        "analytics": {
+            "available_dates": sorted(list(available_dates_set), reverse=True),
+            "trades_by_date": trades_by_date,
+            "trades_by_market": trades_by_market,
+            "today_date": today_str
         },
         "equity_curve": equity_curve,
         "market_allocation": market_allocation,
         "market_breakdown": market_breakdown,
         "open_positions": open_positions,
-        "trade_history": combined_trades,
+        "trade_history": filtered_trades,
         "evolution": {
             "level": evo_state.get("agent_level", 1),
             "rank": evo_state.get("rank", "Novice Quant"),
