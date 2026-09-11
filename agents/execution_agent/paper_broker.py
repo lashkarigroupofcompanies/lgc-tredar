@@ -304,6 +304,37 @@ class PaperBroker:
         LiveTradeWorkingMemory().close_and_archive_trade(closed_record)
         Mem0MemoryEngine().record_episodic_trade(closed_record)
 
+        # Real-time Cloud Sync to Turso Edge Database
+        try:
+            from shared_brain.turso_sync import turso_client
+            turso_client.sync_trade({
+                "trade_id": closed_record.get("trade_id"),
+                "symbol": closed_record.get("symbol"),
+                "market": closed_record.get("market", "GLOBAL"),
+                "side": closed_record.get("direction"),
+                "entry_price": closed_record.get("entry_price"),
+                "exit_price": closed_record.get("exit_price"),
+                "quantity": closed_record.get("initial_size"),
+                "pnl": closed_record.get("realized_pnl"),
+                "pnl_percent": closed_record.get("pnl_percent", 0.0),
+                "strategy": closed_record.get("strategy", "Dynamic Quant Alpha"),
+                "exit_reason": closed_record.get("exit_reason"),
+                "confidence": 0.85,
+                "time": closed_record.get("timestamp_close")
+            })
+            turso_client.sync_neural_memory({
+                "id": f"MEM-{closed_record.get('trade_id')}",
+                "trade_id": closed_record.get("trade_id"),
+                "symbol": closed_record.get("symbol"),
+                "outcome": "WIN" if closed_record.get("realized_pnl", 0) > 0 else "LOSS",
+                "pnl": closed_record.get("realized_pnl"),
+                "regime": closed_record.get("market", "Trend"),
+                "lesson": f"Closed via {closed_record.get('exit_reason')}. Execution efficiency: {exec_quality.get('trade_efficiency_pct', 0)}%.",
+                "counterfactual_note": f"R-Multiple: {r_mult}R on bar #{pos.get('bars_held', 1)}"
+            })
+        except Exception as e:
+            logger.debug(f"[PaperBroker] Turso sync notice: {e}")
+
         emoji = "✅" if net_pnl > 0 else ("⚡" if exit_type == "EMERGENCY_EARLY_EXIT" else "❌")
         logger.info(
             f"[PaperBroker] {emoji} POSITION CLOSED [{direction} {pos['symbol']}] on Bar #{pos['bars_held']} | "

@@ -409,6 +409,20 @@ def update_llm_config(req: LLMConfigRequest):
     return JSONResponse(content=res)
 
 
+@app.get("/api/turso/status")
+def get_turso_status():
+    """Returns Turso edge database connection status and synchronized records count."""
+    from shared_brain.turso_sync import turso_client
+    return JSONResponse(content=turso_client.get_status())
+
+
+@app.post("/api/turso/init")
+def init_turso_tables():
+    """Initializes tables in Turso cloud database."""
+    from shared_brain.turso_sync import turso_client
+    return JSONResponse(content=turso_client.initialize_tables())
+
+
 @app.get("/api/ceo-status")
 def get_ceo_status():
     """Returns supreme telemetry and arbitration state from the CEO King Agent."""

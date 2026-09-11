@@ -22,6 +22,8 @@ ENV/
 .env.*.local
 *.pem
 *.key
+*turso*.json
+turso_config.json
 
 # Build outputs
 dist/
