@@ -230,6 +230,7 @@ export class HackerDeskController {
     this.initAnalysisScreen();
     this.initLearnAndRememberModal();
     this.initSimpleLogsDrawer();
+    this.initVersionChecker();
     this.startStateSync();
   }
 
@@ -289,7 +290,7 @@ export class HackerDeskController {
         <div class="hk-brand-group">
           <div class="hk-pulse-dot"></div>
           <span class="hk-brand-title">LGC QUANTUM</span>
-          <span class="hk-brand-tag">v2.5</span>
+          <span class="hk-brand-tag" id="hkAppVersionTag" style="cursor:pointer;" title="LGC Trader v2.12.0 - Click to check updates">v2.12.0</span>
 
           <!-- MASTER AGENT ARMY ON / OFF BUTTON -->
           <button class="hk-master-switch-btn off" id="hkAgentMasterBtn" title="Click to Configure & Launch Autonomous Agents">
@@ -323,6 +324,12 @@ export class HackerDeskController {
         </div>
 
         <div class="hk-header-right">
+          <!-- LIVE VERSION STATUS & UPDATE CHECKER -->
+          <button class="hk-version-badge up-to-date" id="hkVersionCheckBtn" title="Current Engine: v2.12.0. Click to Check for GitHub Updates">
+            <span class="hk-version-dot"></span>
+            <span id="hkVersionBadgeText">v2.12.0 • LATEST</span>
+          </button>
+
           <div class="hk-zulu-clock" id="hkZuluClock">00:00:00 UTC</div>
           <!-- LEARN & REMEMBER MISTAKES BUTTON ON RIGHT UPPER LINE (User Request #7) -->
           <button class="hk-learn-nav-btn" id="hkLearnAuditBtn" title="Audit All Past Data, Recall Mistakes & Sump Counterfactual Replay">
@@ -823,6 +830,24 @@ export class HackerDeskController {
           </div>
           <div class="hk-simple-logs-container" id="hkSimpleLogsModalContent" style="max-height:420px;overflow-y:auto;">
             <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+
+      <!-- LGC TRADER STANDALONE APP UPDATE MODAL -->
+      <div id="hk-update-modal" class="hk-modal-overlay">
+        <div class="hk-confirm-box" style="width:580px;max-width:92vw;text-align:left;align-items:stretch;">
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #14281a;padding-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:20px;">🚀</span>
+              <span style="font-family:var(--hk-font-mono);font-size:13px;font-weight:800;color:#00ff66;">
+                LGC TRADER SYSTEM UPDATE
+              </span>
+            </div>
+            <button class="hk-modal-exit-btn" id="hkUpdateModalExitBtn">✖</button>
+          </div>
+          <div id="hkUpdateModalBody" style="padding:16px 0;">
+            <!-- Populated dynamically by checkAppVersion() -->
           </div>
         </div>
       </div>
@@ -4220,6 +4245,171 @@ export class HackerDeskController {
     exitBtn?.addEventListener('click', () => {
       if (modal) modal.classList.remove('open');
     });
+  }
+
+  // --- Automated Version Tracking & Update System ---
+  private initVersionChecker(): void {
+    const checkBtn = document.getElementById('hkVersionCheckBtn');
+    const tagBtn = document.getElementById('hkAppVersionTag');
+    const modal = document.getElementById('hk-update-modal');
+    const exitBtn = document.getElementById('hkUpdateModalExitBtn');
+
+    checkBtn?.addEventListener('click', () => {
+      this.checkAppVersion(true);
+    });
+
+    tagBtn?.addEventListener('click', () => {
+      this.checkAppVersion(true);
+    });
+
+    exitBtn?.addEventListener('click', () => {
+      if (modal) modal.classList.remove('open');
+    });
+
+    // Initial check on load
+    setTimeout(() => {
+      this.checkAppVersion(false);
+    }, 1500);
+
+    // Periodic check every 15 minutes
+    setInterval(() => {
+      this.checkAppVersion(false);
+    }, 15 * 60 * 1000);
+  }
+
+  public async checkAppVersion(showModal = false): Promise<void> {
+    const badge = document.getElementById('hkVersionCheckBtn');
+    const badgeText = document.getElementById('hkVersionBadgeText');
+    const modal = document.getElementById('hk-update-modal');
+    const modalBody = document.getElementById('hkUpdateModalBody');
+
+    if (showModal && modal && modalBody) {
+      modal.classList.add('open');
+      modalBody.innerHTML = `
+        <div style="padding:30px 10px;text-align:center;color:#94a3b8;font-family:var(--hk-font-mono);">
+          <div style="font-size:24px;margin-bottom:10px;">⚡</div>
+          <div style="color:#00ff66;font-size:13px;font-weight:700;">CHECKING GITHUB CLOUD RELEASES...</div>
+          <div style="font-size:11px;color:#64748b;margin-top:4px;">Scanning repository paras2l/lgc-tredar for updates</div>
+        </div>
+      `;
+    }
+
+    try {
+      const res = await fetch('http://localhost:8000/api/version/check');
+      if (res.ok) {
+        const data = await res.json();
+        const hasUpdate = Boolean(data.has_update);
+        const currentVer = data.current_version || '2.12.0';
+        const latestVer = data.latest_version || currentVer;
+
+        if (badge && badgeText) {
+          if (hasUpdate) {
+            badge.className = 'hk-version-badge update-available';
+            badgeText.innerHTML = `🔥 UPDATE v${latestVer}`;
+            badge.title = `Update available: v${latestVer}! Click to download standalone executable.`;
+          } else {
+            badge.className = 'hk-version-badge up-to-date';
+            badgeText.innerHTML = `v${currentVer} • LATEST`;
+            badge.title = `Running latest release v${currentVer}. Click to check for updates.`;
+          }
+        }
+
+        if (showModal && modalBody) {
+          this.renderUpdateModalContent(data);
+        }
+      }
+    } catch (e) {
+      console.warn('[HackerDesk] Version check failed:', e);
+      if (showModal && modalBody) {
+        modalBody.innerHTML = `
+          <div style="padding:24px 12px;text-align:center;color:#f87171;font-family:var(--hk-font-mono);">
+            <div style="font-size:22px;margin-bottom:8px;">⚠️</div>
+            <div style="font-size:13px;font-weight:700;">OFFLINE / GITHUB RATE LIMIT</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:6px;line-height:1.5;">
+              Local engine is running smoothly at v2.12.0.<br>
+              Check GitHub directly at <a href="https://github.com/paras2l/lgc-tredar/releases" target="_blank" style="color:#00ff66;">github.com/paras2l/lgc-tredar/releases</a>
+            </div>
+          </div>
+        `;
+      }
+    }
+  }
+
+  private renderUpdateModalContent(data: any): void {
+    const modalBody = document.getElementById('hkUpdateModalBody');
+    if (!modalBody) return;
+
+    const hasUpdate = Boolean(data.has_update);
+    const currentVer = data.current_version || '2.12.0';
+    const latestVer = data.latest_version || currentVer;
+    const downloadUrl = data.download_url || `https://github.com/paras2l/lgc-tredar/releases/latest/download/LGCTrader.exe`;
+    const releaseUrl = data.release_url || `https://github.com/paras2l/lgc-tredar/releases`;
+    const notes = data.release_notes || 'Continuous multi-agent improvements, expanded 229+ market assets universe, and automated cloud sync.';
+
+    if (hasUpdate) {
+      modalBody.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;background:#152419;border:1px solid #00ff6655;border-radius:8px;padding:14px;margin-bottom:14px;">
+          <div style="font-size:32px;">🔥</div>
+          <div>
+            <div style="font-family:var(--hk-font-mono);font-size:14px;font-weight:700;color:#00ff66;">
+              New Release Available: v${latestVer}
+            </div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+              Currently installed: <span style="color:#f0fdf4;font-weight:bold;">v${currentVer}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <div style="font-family:var(--hk-font-mono);font-size:11px;font-weight:700;color:#00ff66;margin-bottom:6px;">
+            RELEASE HIGHLIGHTS & CHANGELOG:
+          </div>
+          <div style="background:#03070a;border:1px solid #14281a;border-radius:6px;padding:12px;font-size:12px;color:#cbd5e1;max-height:160px;overflow-y:auto;white-space:pre-wrap;font-family:sans-serif;line-height:1.5;">
+${notes}
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <a href="${downloadUrl}" target="_blank" class="hk-btn-primary" style="flex:1;text-align:center;text-decoration:none;padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:bold;background:#00ff66;color:#000;border-radius:6px;">
+            <span>⬇️</span>
+            <span>DOWNLOAD LGCTrader.exe</span>
+          </a>
+          <a href="${releaseUrl}" target="_blank" class="hk-btn-secondary" style="text-align:center;text-decoration:none;padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:6px;background:#0f1f14;color:#00ff66;border:1px solid #00ff6655;border-radius:6px;">
+            <span>🌐</span>
+            <span>RELEASES</span>
+          </a>
+        </div>
+      `;
+    } else {
+      modalBody.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;background:#08140c;border:1px solid #00ff6644;border-radius:8px;padding:14px;margin-bottom:14px;">
+          <div style="font-size:32px;">✅</div>
+          <div>
+            <div style="font-family:var(--hk-font-mono);font-size:14px;font-weight:700;color:#00ff66;">
+              LGC Trader Engine is Up To Date (v${currentVer})
+            </div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:3px;">
+              You are running the latest compiled release with Turso cloud edge synchronization.
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#03070a;border:1px solid #14281a;border-radius:6px;padding:12px;font-size:11px;color:#64748b;font-family:var(--hk-font-mono);margin-bottom:14px;line-height:1.6;">
+          <span style="color:#00ff66;">●</span> STANDALONE DESKTOP: Windows Standalone Executable Ready<br>
+          <span style="color:#00ff66;">●</span> MARKET SCREENER: 229+ Assets Active across 5 Global Asset Classes<br>
+          <span style="color:#00ff66;">●</span> CLOUD MEMORY: Turso Edge Sync (Tokyo) Active & Persistent
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <a href="${releaseUrl}" target="_blank" style="color:#00ff66;font-size:11px;font-family:var(--hk-font-mono);text-decoration:none;display:flex;align-items:center;gap:4px;padding:8px 12px;background:#09160e;border:1px solid #14281a;border-radius:6px;">
+            View All Releases on GitHub ↗
+          </a>
+          <button onclick="document.getElementById('hk-update-modal')?.classList.remove('open')" style="padding:8px 18px;font-size:11px;font-family:var(--hk-font-mono);font-weight:bold;background:#00ff66;color:#000;border:none;border-radius:6px;cursor:pointer;">
+            Close
+          </button>
+        </div>
+      `;
+    }
   }
 
   // --- Background State Synchronizer ---

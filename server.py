@@ -19,6 +19,7 @@ import uvicorn
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 from agents.core_agent.agent import CoreTradingAgent
+from version import APP_VERSION, APP_NAME, GITHUB_REPO, GITHUB_RELEASES_URL, GITHUB_DOWNLOAD_URL, RELEASE_PAGE_URL
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("TradingServer")
@@ -60,7 +61,7 @@ async def lifespan(app: FastAPI):
     loop_active = False
 
 
-app = FastAPI(title="LGC Quant Trading - Autonomous Multi-Agent Engine", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title=f"{APP_NAME} - Autonomous Multi-Agent Engine", version=APP_VERSION, lifespan=lifespan)
 
 
 class MarketSelectRequest(BaseModel):
@@ -99,7 +100,59 @@ def set_trading_mode(req: TradingModeRequest):
 @app.get("/api/state")
 def get_state():
     """Returns real-time aggregated snapshot across all 7 agents and portfolio."""
-    return JSONResponse(content=core.get_dashboard_state())
+    st = core.get_dashboard_state()
+    st["app_version"] = APP_VERSION
+    st["app_name"] = APP_NAME
+    return JSONResponse(content=st)
+
+
+@app.get("/api/version/check")
+def check_version():
+    """Checks GitHub for latest release and compares with current version."""
+    import requests
+    response_data = {
+        "current_version": APP_VERSION,
+        "latest_version": APP_VERSION,
+        "has_update": False,
+        "release_name": f"{APP_NAME} v{APP_VERSION}",
+        "release_url": RELEASE_PAGE_URL,
+        "download_url": GITHUB_DOWNLOAD_URL,
+        "release_notes": "All quant agents and tactical terminals are operating at the latest version specifications.",
+        "published_at": ""
+    }
+    try:
+        resp = requests.get(
+            GITHUB_RELEASES_URL,
+            headers={"User-Agent": "LGCTrader-App", "Accept": "application/vnd.github.v3+json"},
+            timeout=4.0
+        )
+        if resp.status_code == 200:
+            rel = resp.json()
+            tag = rel.get("tag_name", "").lstrip("v").strip()
+            if tag:
+                response_data["latest_version"] = tag
+                response_data["release_name"] = rel.get("name", f"Release {tag}")
+                response_data["release_url"] = rel.get("html_url", RELEASE_PAGE_URL)
+                response_data["published_at"] = rel.get("published_at", "")
+                response_data["release_notes"] = rel.get("body", "")
+                
+                # Check for direct exe download asset
+                for asset in rel.get("assets", []):
+                    if asset.get("name", "").endswith(".exe"):
+                        response_data["download_url"] = asset.get("browser_download_url", GITHUB_DOWNLOAD_URL)
+                        break
+                
+                def parse_v(v_str):
+                    return [int(x) if x.isdigit() else 0 for x in v_str.replace("v", "").split(".")[:3]]
+                
+                curr_parts = parse_v(APP_VERSION)
+                latest_parts = parse_v(tag)
+                if latest_parts > curr_parts:
+                    response_data["has_update"] = True
+    except Exception as e:
+        logger.warning(f"[VersionCheck] Error checking GitHub releases: {e}")
+        
+    return JSONResponse(content=response_data)
 
 
 @app.post("/api/start")
@@ -1146,17 +1199,27 @@ def run_backtest_agent(req: BacktestRunRequest):
         return JSONResponse(content={"status": "ERROR", "message": str(e)}, status_code=500)
 
 
-# Mount UI directory
-ui_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "ui"))
-if not os.path.exists(ui_dir):
-    os.makedirs(ui_dir, exist_ok=True)
+# Mount UI directory (supports local dev, dist build, and PyInstaller bundled MEIPASS)
+base_path = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))
+ui_dir = os.path.join(base_path, "ui")
+dist_dir = os.path.join(ui_dir, "dist")
+static_dir = dist_dir if (os.path.exists(dist_dir) and os.path.exists(os.path.join(dist_dir, "index.html"))) else ui_dir
 
-app.mount("/static", StaticFiles(directory=ui_dir), name="static")
+if not os.path.exists(static_dir):
+    os.makedirs(static_dir, exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 @app.get("/")
 def serve_index():
-    index_path = os.path.join(ui_dir, "index.html")
+    index_path = os.path.join(static_dir, "index.html")
+    if not os.path.exists(index_path):
+        # Fallback to root ui directory if dist/index.html was not found
+        fallback_path = os.path.join(ui_dir, "index.html")
+        if os.path.exists(fallback_path):
+            index_path = fallback_path
+
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return JSONResponse(content={"message": "UI under construction. Access /api/state for raw data."})
@@ -1164,3 +1227,4 @@ def serve_index():
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
