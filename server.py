@@ -168,6 +168,149 @@ def check_version():
     return JSONResponse(content=response_data)
 
 
+# --- In-App One-Click Auto-Update Engine ---
+update_state = {
+    "status": "IDLE",  # IDLE | DOWNLOADING | READY_TO_RESTART | ERROR
+    "progress": 0,
+    "message": "",
+    "error": None
+}
+update_lock = threading.Lock()
+
+
+def run_auto_update_worker(download_url: str):
+    """Downloads the latest LGCTrader.exe from GitHub and executes detached batch updater."""
+    global update_state
+    try:
+        update_state["status"] = "DOWNLOADING"
+        update_state["progress"] = 5
+        update_state["message"] = "Connecting to GitHub Releases..."
+        update_state["error"] = None
+
+        import requests
+        import subprocess
+
+        headers = {"User-Agent": "LGCTrader-AutoUpdater", "Accept": "application/octet-stream"}
+        resp = requests.get(download_url, stream=True, timeout=60, headers=headers)
+        if resp.status_code != 200:
+            raise RuntimeError(f"Download failed with HTTP {resp.status_code}")
+
+        total_size = int(resp.headers.get("content-length", 0))
+        downloaded = 0
+
+        appdata_dir = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "LGCTrader")
+        os.makedirs(appdata_dir, exist_ok=True)
+        new_exe_path = os.path.join(appdata_dir, "LGCTrader_latest.exe")
+
+        with open(new_exe_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=256 * 1024):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        pct = int((downloaded / total_size) * 90)
+                        update_state["progress"] = max(5, min(90, pct))
+                        mb_done = downloaded / (1024 * 1024)
+                        mb_tot = total_size / (1024 * 1024)
+                        update_state["message"] = f"Downloading update: {mb_done:.1f} MB / {mb_tot:.1f} MB ({pct}%)"
+
+        update_state["progress"] = 95
+        update_state["message"] = "Verifying binary integrity..."
+        time.sleep(0.5)
+
+        if not os.path.exists(new_exe_path) or os.path.getsize(new_exe_path) < 20 * 1024 * 1024:
+            raise RuntimeError("Downloaded binary is corrupt or under 20MB.")
+
+        if getattr(sys, "frozen", False):
+            target_exe = os.path.abspath(sys.executable)
+        else:
+            target_exe = os.path.abspath(os.path.join(os.path.dirname(__file__), "dist", "LGCTrader.exe"))
+
+        update_state["progress"] = 100
+        update_state["status"] = "READY_TO_RESTART"
+        update_state["message"] = "Update complete! Restarting LGC Trader into new version..."
+
+        batch_script_path = os.path.join(appdata_dir, "apply_update.bat")
+        current_pid = os.getpid()
+
+        batch_content = f"""@echo off
+setlocal enabledelayedexpansion
+timeout /t 1 /nobreak >nul
+:wait_loop
+tasklist /fi "PID eq {current_pid}" | find "{current_pid}" >nul
+if not errorlevel 1 (
+    timeout /t 1 /nobreak >nul
+    goto wait_loop
+)
+:copy_loop
+copy /y "{new_exe_path}" "{target_exe}" >nul
+if errorlevel 1 (
+    timeout /t 1 /nobreak >nul
+    goto copy_loop
+)
+start "" "{target_exe}"
+del "{new_exe_path}" >nul 2>&1
+(goto) 2>nul & del "%~f0"
+"""
+        with open(batch_script_path, "w", encoding="utf-8") as bf:
+            bf.write(batch_content)
+
+        def trigger_restart():
+            time.sleep(1.8)
+            try:
+                subprocess.Popen(
+                    ["cmd.exe", "/c", batch_script_path],
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS if sys.platform == "win32" else 0,
+                    shell=True
+                )
+            except Exception as ex:
+                logger.error(f"[AutoUpdater] Failed to spawn update script: {ex}")
+            time.sleep(0.5)
+            os._exit(0)
+
+        restart_thread = threading.Thread(target=trigger_restart, daemon=True)
+        restart_thread.start()
+
+    except Exception as e:
+        logger.error(f"[AutoUpdater] Error during update: {e}")
+        update_state["status"] = "ERROR"
+        update_state["error"] = str(e)
+        update_state["message"] = f"Update failed: {e}"
+
+
+@app.post("/api/version/apply-update")
+def apply_update_endpoint():
+    """Starts background downloading and self-restarting into latest release."""
+    global update_state
+    with update_lock:
+        if update_state["status"] == "DOWNLOADING":
+            return JSONResponse(content={"status": "ALREADY_DOWNLOADING", "progress": update_state["progress"]})
+
+        import requests
+        download_url = GITHUB_DOWNLOAD_URL
+        try:
+            resp = requests.get(GITHUB_RELEASES_URL, headers={"User-Agent": "LGCTrader-App"}, timeout=4.0)
+            if resp.status_code == 200:
+                rel = resp.json()
+                for asset in rel.get("assets", []):
+                    if asset.get("name", "").endswith(".exe"):
+                        download_url = asset.get("browser_download_url", download_url)
+                        break
+        except Exception:
+            pass
+
+        worker = threading.Thread(target=run_auto_update_worker, args=(download_url,), daemon=True)
+        worker.start()
+        return JSONResponse(content={"status": "STARTED", "download_url": download_url})
+
+
+@app.get("/api/version/update-progress")
+def get_update_progress():
+    """Polls the auto-update progress."""
+    return JSONResponse(content=update_state)
+
+
+
 @app.post("/api/start")
 def start_engine():
     core.start()

@@ -216,6 +216,7 @@ export class HackerDeskController {
   public isLlmEditMode: boolean = false;
   public activeAnalysisDateFilter: string = 'ALL';
   public activeAnalysisMarketFilter: string = 'ALL';
+  public updatePollTimer: any = null;
 
   public init(): void {
     document.body.classList.add('hacker-night-mode');
@@ -4305,18 +4306,18 @@ export class HackerDeskController {
       if (res.ok) {
         const data = await res.json();
         const hasUpdate = Boolean(data.has_update);
-        const currentVer = data.current_version || '2.12.0';
+        const currentVer = data.current_version || '2.12.3';
         const latestVer = data.latest_version || currentVer;
 
         if (badge && badgeText) {
           if (hasUpdate) {
             badge.className = 'hk-version-badge update-available';
             badgeText.innerHTML = `🔥 UPDATE v${latestVer}`;
-            badge.title = `Update available: v${latestVer}! Click to download standalone executable.`;
+            badge.title = `Update available: v${latestVer}! Click to 1-click auto-update inside the app.`;
           } else {
             badge.className = 'hk-version-badge up-to-date';
             badgeText.innerHTML = `v${currentVer} • LATEST`;
-            badge.title = `Running latest release v${currentVer}. Click to check for updates.`;
+            badge.title = `Running latest release v${currentVer}. Click to check for updates or reinstall.`;
           }
         }
 
@@ -4332,7 +4333,7 @@ export class HackerDeskController {
             <div style="font-size:22px;margin-bottom:8px;">⚠️</div>
             <div style="font-size:13px;font-weight:700;">OFFLINE / GITHUB RATE LIMIT</div>
             <div style="font-size:11px;color:#94a3b8;margin-top:6px;line-height:1.5;">
-              Local engine is running smoothly at v2.12.0.<br>
+              Local engine is running smoothly at v2.12.3.<br>
               Check GitHub directly at <a href="https://github.com/paras2l/lgc-tredar/releases" target="_blank" style="color:#00ff66;">github.com/paras2l/lgc-tredar/releases</a>
             </div>
           </div>
@@ -4346,14 +4347,15 @@ export class HackerDeskController {
     if (!modalBody) return;
 
     const hasUpdate = Boolean(data.has_update);
-    const currentVer = data.current_version || '2.12.0';
+    const currentVer = data.current_version || '2.12.3';
     const latestVer = data.latest_version || currentVer;
     const downloadUrl = data.download_url || `https://github.com/paras2l/lgc-tredar/releases/latest/download/LGCTrader.exe`;
     const releaseUrl = data.release_url || `https://github.com/paras2l/lgc-tredar/releases`;
     const notes = data.release_notes || 'Continuous multi-agent improvements, expanded 229+ market assets universe, and automated cloud sync.';
 
+    let mainActionHtml = '';
     if (hasUpdate) {
-      modalBody.innerHTML = `
+      mainActionHtml = `
         <div style="display:flex;align-items:center;gap:12px;background:#152419;border:1px solid #00ff6655;border-radius:8px;padding:14px;margin-bottom:14px;">
           <div style="font-size:32px;">🔥</div>
           <div>
@@ -4370,24 +4372,24 @@ export class HackerDeskController {
           <div style="font-family:var(--hk-font-mono);font-size:11px;font-weight:700;color:#00ff66;margin-bottom:6px;">
             RELEASE HIGHLIGHTS & CHANGELOG:
           </div>
-          <div style="background:#03070a;border:1px solid #14281a;border-radius:6px;padding:12px;font-size:12px;color:#cbd5e1;max-height:160px;overflow-y:auto;white-space:pre-wrap;font-family:sans-serif;line-height:1.5;">
+          <div style="background:#03070a;border:1px solid #14281a;border-radius:6px;padding:12px;font-size:12px;color:#cbd5e1;max-height:140px;overflow-y:auto;white-space:pre-wrap;font-family:sans-serif;line-height:1.5;">
 ${notes}
           </div>
         </div>
 
-        <div style="display:flex;gap:10px;margin-top:16px;">
-          <a href="${downloadUrl}" target="_blank" class="hk-btn-primary" style="flex:1;text-align:center;text-decoration:none;padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:bold;background:#00ff66;color:#000;border-radius:6px;">
-            <span>⬇️</span>
-            <span>DOWNLOAD LGCTrader.exe</span>
-          </a>
-          <a href="${releaseUrl}" target="_blank" class="hk-btn-secondary" style="text-align:center;text-decoration:none;padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:6px;background:#0f1f14;color:#00ff66;border:1px solid #00ff6655;border-radius:6px;">
-            <span>🌐</span>
-            <span>RELEASES</span>
-          </a>
+        <!-- In-App Auto-Update Button -->
+        <div id="hkUpdateActionSection" style="margin-bottom:14px;">
+          <button id="hkAutoUpdateBtn" style="width:100%;padding:13px 16px;font-family:var(--hk-font-mono);font-size:13px;font-weight:800;letter-spacing:0.5px;color:#000;background:#00ff66;border:none;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 0 20px rgba(0,255,102,0.4);transition:all 0.2s;">
+            <span style="font-size:16px;">⚡</span>
+            <span>1-CLICK AUTO-UPDATE & RESTART TO v${latestVer}</span>
+          </button>
+          <div style="font-size:10px;color:#64748b;text-align:center;margin-top:6px;font-family:var(--hk-font-mono);">
+            Downloads latest executable, updates binary & automatically restarts. No manual file replacement needed!
+          </div>
         </div>
       `;
     } else {
-      modalBody.innerHTML = `
+      mainActionHtml = `
         <div style="display:flex;align-items:center;gap:12px;background:#08140c;border:1px solid #00ff6644;border-radius:8px;padding:14px;margin-bottom:14px;">
           <div style="font-size:32px;">✅</div>
           <div>
@@ -4395,27 +4397,195 @@ ${notes}
               LGC Trader Engine is Up To Date (v${currentVer})
             </div>
             <div style="font-size:11px;color:#94a3b8;margin-top:3px;">
-              You are running the latest compiled release with Turso cloud edge synchronization.
+              You are running the latest compiled release with in-app auto-update engine and Turso cloud sync.
             </div>
           </div>
         </div>
 
         <div style="background:#03070a;border:1px solid #14281a;border-radius:6px;padding:12px;font-size:11px;color:#64748b;font-family:var(--hk-font-mono);margin-bottom:14px;line-height:1.6;">
+          <span style="color:#00ff66;">●</span> IN-APP UPDATER: 1-Click Auto-Update & Process Relaunch Active<br>
           <span style="color:#00ff66;">●</span> STANDALONE DESKTOP: Windows Standalone Executable Ready<br>
           <span style="color:#00ff66;">●</span> MARKET SCREENER: 229+ Assets Active across 5 Global Asset Classes<br>
           <span style="color:#00ff66;">●</span> CLOUD MEMORY: Turso Edge Sync (Tokyo) Active & Persistent
         </div>
 
-        <div style="display:flex;justify-content:flex-end;gap:10px;">
-          <a href="${releaseUrl}" target="_blank" style="color:#00ff66;font-size:11px;font-family:var(--hk-font-mono);text-decoration:none;display:flex;align-items:center;gap:4px;padding:8px 12px;background:#09160e;border:1px solid #14281a;border-radius:6px;">
-            View All Releases on GitHub ↗
-          </a>
-          <button onclick="document.getElementById('hk-update-modal')?.classList.remove('open')" style="padding:8px 18px;font-size:11px;font-family:var(--hk-font-mono);font-weight:bold;background:#00ff66;color:#000;border:none;border-radius:6px;cursor:pointer;">
-            Close
+        <div id="hkUpdateActionSection" style="margin-bottom:14px;">
+          <button id="hkAutoUpdateBtn" style="width:100%;padding:10px 14px;font-family:var(--hk-font-mono);font-size:11px;font-weight:700;color:#00ff66;background:#0d1e12;border:1px solid #00ff6655;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+            <span>🔄</span>
+            <span>FORCE RE-INSTALL / UPDATE TO LATEST BUILD</span>
           </button>
         </div>
       `;
     }
+
+    modalBody.innerHTML = `
+      ${mainActionHtml}
+
+      <!-- Dynamic Progress UI -->
+      <div id="hkUpdateProgressBox" style="display:none;background:#03080c;border:1px solid #00ff6666;border-radius:6px;padding:14px;margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span id="hkUpdateProgressStatus" style="font-family:var(--hk-font-mono);font-size:11px;font-weight:700;color:#00ff66;">
+            STARTING DOWNLOAD...
+          </span>
+          <span id="hkUpdateProgressPct" style="font-family:var(--hk-font-mono);font-size:13px;font-weight:800;color:#38bdf8;">
+            0%
+          </span>
+        </div>
+        <div style="width:100%;height:10px;background:#14281a;border-radius:5px;overflow:hidden;border:1px solid #00ff6633;position:relative;">
+          <div id="hkUpdateProgressBar" style="width:0%;height:100%;background:linear-gradient(90deg, #00ff66, #38bdf8);box-shadow:0 0 10px #00ff66;transition:width 0.3s ease;"></div>
+        </div>
+        <div id="hkUpdateProgressSubtext" style="font-size:10px;color:#94a3b8;margin-top:6px;font-family:var(--hk-font-mono);">
+          Connecting to GitHub releases CDN...
+        </div>
+      </div>
+
+      <!-- Secondary Links / Fallbacks -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #14281a;padding-top:12px;">
+        <div style="display:flex;gap:10px;">
+          <a href="${downloadUrl}" target="_blank" style="color:#64748b;font-size:10px;font-family:var(--hk-font-mono);text-decoration:none;">
+            Manual Download (.exe) ↗
+          </a>
+          <a href="${releaseUrl}" target="_blank" style="color:#64748b;font-size:10px;font-family:var(--hk-font-mono);text-decoration:none;">
+            GitHub Releases ↗
+          </a>
+        </div>
+        <button onclick="document.getElementById('hk-update-modal')?.classList.remove('open')" style="padding:6px 14px;font-size:11px;font-family:var(--hk-font-mono);font-weight:bold;background:#14281a;color:#cbd5e1;border:1px solid #224a2c;border-radius:4px;cursor:pointer;">
+          Close
+        </button>
+      </div>
+    `;
+
+    const autoUpdateBtn = document.getElementById('hkAutoUpdateBtn');
+    autoUpdateBtn?.addEventListener('click', () => {
+      this.triggerAutoUpdate();
+    });
+
+    this.checkActiveUpdateProgress();
+  }
+
+  private async triggerAutoUpdate(): Promise<void> {
+    const btn = document.getElementById('hkAutoUpdateBtn') as HTMLButtonElement | null;
+    const progressBox = document.getElementById('hkUpdateProgressBox');
+    const statusEl = document.getElementById('hkUpdateProgressStatus');
+    const subtextEl = document.getElementById('hkUpdateProgressSubtext');
+
+    if (btn) {
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+      btn.innerHTML = `<span>⏳</span><span>STARTING AUTO-UPDATE IN BACKGROUND...</span>`;
+    }
+    if (progressBox) progressBox.style.display = 'block';
+
+    try {
+      const res = await fetch('/api/version/apply-update', { method: 'POST' });
+      if (res.ok) {
+        this.startUpdateProgressPolling();
+      } else {
+        if (statusEl) statusEl.textContent = 'FAILED TO INITIATE UPDATE';
+        if (subtextEl) subtextEl.textContent = `Server responded with status ${res.status}`;
+        if (btn) {
+          btn.disabled = false;
+          btn.style.opacity = '1';
+          btn.style.cursor = 'pointer';
+        }
+      }
+    } catch (err: any) {
+      console.error('[HackerDesk] AutoUpdate trigger error:', err);
+      if (statusEl) statusEl.textContent = 'UPDATE NETWORK ERROR';
+      if (subtextEl) subtextEl.textContent = String(err?.message || err);
+      if (btn) {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+      }
+    }
+  }
+
+  private async checkActiveUpdateProgress(): Promise<void> {
+    try {
+      const res = await fetch('/api/version/update-progress');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'DOWNLOADING' || data.status === 'READY_TO_RESTART') {
+          const progressBox = document.getElementById('hkUpdateProgressBox');
+          if (progressBox) progressBox.style.display = 'block';
+          const btn = document.getElementById('hkAutoUpdateBtn') as HTMLButtonElement | null;
+          if (btn) {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+            btn.innerHTML = `<span>⏳</span><span>UPDATE IN PROGRESS...</span>`;
+          }
+          this.startUpdateProgressPolling();
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  private startUpdateProgressPolling(): void {
+    if (this.updatePollTimer) clearInterval(this.updatePollTimer);
+
+    this.updatePollTimer = setInterval(async () => {
+      try {
+        const res = await fetch('/api/version/update-progress');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const statusEl = document.getElementById('hkUpdateProgressStatus');
+        const pctEl = document.getElementById('hkUpdateProgressPct');
+        const barEl = document.getElementById('hkUpdateProgressBar');
+        const subtextEl = document.getElementById('hkUpdateProgressSubtext');
+        const progressBox = document.getElementById('hkUpdateProgressBox');
+        if (progressBox) progressBox.style.display = 'block';
+
+        const progress = Math.max(0, Math.min(100, Number(data.progress) || 0));
+        if (barEl) barEl.style.width = `${progress}%`;
+        if (pctEl) pctEl.textContent = `${progress}%`;
+        if (subtextEl && data.message) subtextEl.textContent = data.message;
+
+        if (data.status === 'DOWNLOADING') {
+          if (statusEl) statusEl.textContent = 'DOWNLOADING LATEST LGC TRADER BUILD...';
+        } else if (data.status === 'READY_TO_RESTART') {
+          if (statusEl) {
+            statusEl.textContent = '🚀 UPDATE READY - RESTARTING APP...';
+            statusEl.style.color = '#38bdf8';
+          }
+          if (subtextEl) {
+            subtextEl.innerHTML = `<strong style="color:#00ff66;">Update downloaded & verified!</strong> Closing and relaunching new version...`;
+          }
+          if (barEl) barEl.style.width = '100%';
+          if (pctEl) pctEl.textContent = '100%';
+          clearInterval(this.updatePollTimer);
+          this.updatePollTimer = null;
+        } else if (data.status === 'ERROR') {
+          if (statusEl) {
+            statusEl.textContent = '❌ UPDATE FAILED';
+            statusEl.style.color = '#ef4444';
+          }
+          if (subtextEl) subtextEl.textContent = data.error || data.message || 'Unknown error occurred.';
+          const btn = document.getElementById('hkAutoUpdateBtn') as HTMLButtonElement | null;
+          if (btn) {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+            btn.innerHTML = `<span>⚡</span><span>RETRY AUTO-UPDATE</span>`;
+          }
+          clearInterval(this.updatePollTimer);
+          this.updatePollTimer = null;
+        }
+      } catch (err) {
+        // Process is restarting
+        const statusEl = document.getElementById('hkUpdateProgressStatus');
+        const subtextEl = document.getElementById('hkUpdateProgressSubtext');
+        if (statusEl) statusEl.textContent = '🚀 RESTARTING LGC TRADER...';
+        if (subtextEl) subtextEl.textContent = 'App process exited. Launching latest version now...';
+        clearInterval(this.updatePollTimer);
+        this.updatePollTimer = null;
+      }
+    }, 500);
   }
 
   // --- Background State Synchronizer ---
