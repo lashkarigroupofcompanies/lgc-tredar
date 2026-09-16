@@ -18,7 +18,7 @@ export default defineConfig({
     ],
   },
   define: {
-    __APP_VERSION__: JSON.stringify('2.12.3'),
+    __APP_VERSION__: JSON.stringify('2.12.4'),
     __CLERK_JS_VERSION__: JSON.stringify('6.0.0'),
     __BUILD_HASH__: JSON.stringify('prod'),
     'process.env.NODE_ENV': JSON.stringify('production'),

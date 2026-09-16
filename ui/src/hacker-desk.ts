@@ -4306,7 +4306,7 @@ export class HackerDeskController {
       if (res.ok) {
         const data = await res.json();
         const hasUpdate = Boolean(data.has_update);
-        const currentVer = data.current_version || '2.12.3';
+        const currentVer = data.current_version || '2.12.4';
         const latestVer = data.latest_version || currentVer;
 
         if (badge && badgeText) {
@@ -4333,7 +4333,7 @@ export class HackerDeskController {
             <div style="font-size:22px;margin-bottom:8px;">⚠️</div>
             <div style="font-size:13px;font-weight:700;">OFFLINE / GITHUB RATE LIMIT</div>
             <div style="font-size:11px;color:#94a3b8;margin-top:6px;line-height:1.5;">
-              Local engine is running smoothly at v2.12.3.<br>
+              Local engine is running smoothly at v2.12.4.<br>
               Check GitHub directly at <a href="https://github.com/paras2l/lgc-tredar/releases" target="_blank" style="color:#00ff66;">github.com/paras2l/lgc-tredar/releases</a>
             </div>
           </div>
@@ -4347,7 +4347,7 @@ export class HackerDeskController {
     if (!modalBody) return;
 
     const hasUpdate = Boolean(data.has_update);
-    const currentVer = data.current_version || '2.12.3';
+    const currentVer = data.current_version || '2.12.4';
     const latestVer = data.latest_version || currentVer;
     const downloadUrl = data.download_url || `https://github.com/paras2l/lgc-tredar/releases/latest/download/LGCTrader.exe`;
     const releaseUrl = data.release_url || `https://github.com/paras2l/lgc-tredar/releases`;
