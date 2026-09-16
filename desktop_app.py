@@ -16,6 +16,13 @@ import subprocess
 import traceback
 import multiprocessing
 
+# Prevent WebView2 / Chromium from suspending or throttling background timers when minimized
+os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (
+    "--disable-background-timer-throttling "
+    "--disable-backgrounding-occluded-windows "
+    "--disable-renderer-backgrounding"
+)
+
 # Critical fix for PyInstaller --windowed / --noconsole mode
 # On Windows windowed apps, sys.stdout, sys.stderr, and sys.stdin are None.
 # Libraries like uvicorn call sys.stdout.isatty(), causing AttributeError: 'NoneType' object has no attribute 'isatty'.

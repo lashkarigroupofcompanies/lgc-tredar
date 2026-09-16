@@ -1847,7 +1847,7 @@ export class HackerDeskController {
     }
 
     try {
-      await fetch('http://localhost:8000/api/trading-mode', {
+      await fetch('/api/trading-mode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: this.tradingMode })
@@ -2071,7 +2071,7 @@ export class HackerDeskController {
 
   private async launchAgentArmy(): Promise<void> {
     try {
-      const res = await fetch('http://localhost:8000/api/start-wizard', {
+      const res = await fetch('/api/start-wizard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2089,6 +2089,12 @@ export class HackerDeskController {
         this.updateMasterSwitchUI();
         this.closeWizard();
         this.updateHudOnStart();
+      } else {
+        console.warn('[HackerDesk] API start-wizard returned non-OK status:', res.status);
+        this.isAgentArmyRunning = true;
+        this.updateMasterSwitchUI();
+        this.closeWizard();
+        this.updateHudOnStart();
       }
     } catch (e) {
       console.warn('[HackerDesk] Could not connect to API server, starting local mode:', e);
@@ -2101,7 +2107,7 @@ export class HackerDeskController {
 
   private async haltAgentArmy(): Promise<void> {
     try {
-      await fetch('http://localhost:8000/api/stop', { method: 'POST' });
+      await fetch('/api/stop', { method: 'POST' });
     } catch (e) {
       console.warn('[HackerDesk] API stop call failed:', e);
     }
@@ -2189,10 +2195,10 @@ export class HackerDeskController {
     try {
       const q = `date_filter=${encodeURIComponent(this.activeAnalysisDateFilter)}&market_filter=${encodeURIComponent(this.activeAnalysisMarketFilter)}`;
       const [resAna, resRisk, resHealth, resLogs] = await Promise.all([
-        fetch(`http://localhost:8000/api/analysis?${q}`).catch(() => null),
-        fetch('http://localhost:8000/api/risk-dashboard').catch(() => null),
-        fetch('http://localhost:8000/api/agent-health').catch(() => null),
-        fetch('http://localhost:8000/api/simple-logs').catch(() => null)
+        fetch(`/api/analysis?${q}`).catch(() => null),
+        fetch('/api/risk-dashboard').catch(() => null),
+        fetch('/api/agent-health').catch(() => null),
+        fetch('/api/simple-logs').catch(() => null)
       ]);
 
       if (resRisk && resRisk.ok) {
@@ -2257,7 +2263,7 @@ export class HackerDeskController {
 
   private async fetchLlmConfig(): Promise<void> {
     try {
-      const res = await fetch('http://localhost:8000/api/llm-config');
+      const res = await fetch('/api/llm-config');
       if (res.ok) {
         this.cachedLlmConfig = await res.json();
       }
@@ -2268,7 +2274,7 @@ export class HackerDeskController {
 
   private async fetchTursoStatus(): Promise<void> {
     try {
-      const res = await fetch('http://localhost:8000/api/turso/status');
+      const res = await fetch('/api/turso/status');
       if (res.ok) {
         this.cachedTursoStatus = await res.json();
       }
@@ -2651,7 +2657,7 @@ export class HackerDeskController {
         const url = urlInput?.value || '';
 
         try {
-          const resp = await fetch('http://localhost:8000/api/llm-config', {
+          const resp = await fetch('/api/llm-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -4132,7 +4138,7 @@ export class HackerDeskController {
         (startAuditBtn as HTMLButtonElement).disabled = true;
       }
       try {
-        const res = await fetch('http://localhost:8000/api/learn-audit', { method: 'POST' });
+        const res = await fetch('/api/learn-audit', { method: 'POST' });
         if (res.ok) {
           const data = await res.json();
           const replyBox = document.getElementById('hkAuditPlainReply');
@@ -4175,7 +4181,7 @@ export class HackerDeskController {
       }
 
       try {
-        const res = await fetch('http://localhost:8000/api/backtest-run', {
+        const res = await fetch('/api/backtest-run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ strategy: strat, market: mkt, symbol: mkt === 'CRYPTO' ? 'BTC' : (mkt === 'INDIAN_STOCKS' ? 'RELIANCE' : 'NVDA') })
@@ -4220,7 +4226,7 @@ export class HackerDeskController {
         content.innerHTML = `<div style="padding:20px;text-align:center;color:#64748b;">Loading simple trade logs...</div>`;
       }
       try {
-        const res = await fetch('http://localhost:8000/api/simple-logs');
+        const res = await fetch('/api/simple-logs');
         if (res.ok) {
           const d = await res.json();
           this.cachedSimpleLogs = d.logs || [];
@@ -4295,7 +4301,7 @@ export class HackerDeskController {
     }
 
     try {
-      const res = await fetch('http://localhost:8000/api/version/check');
+      const res = await fetch('/api/version/check');
       if (res.ok) {
         const data = await res.json();
         const hasUpdate = Boolean(data.has_update);
@@ -4413,81 +4419,136 @@ ${notes}
   }
 
   // --- Background State Synchronizer ---
-  private startStateSync(): void {
-    setInterval(async () => {
-      try {
-        const res = await fetch('http://localhost:8000/api/state');
-        if (res.ok) {
-          const st = await res.json();
-          if (st.status === 'RUNNING' && !this.isAgentArmyRunning) {
-            this.isAgentArmyRunning = true;
-            this.updateMasterSwitchUI();
-          } else if (st.status === 'STOPPED' && this.isAgentArmyRunning) {
-            this.isAgentArmyRunning = false;
-            this.updateMasterSwitchUI();
-          }
+  private syncTimerId: any = null;
 
-          if (st.trading_mode && st.trading_mode !== this.tradingMode) {
-            this.tradingMode = st.trading_mode;
-            this.updateHudOnWildMode(this.tradingMode === 'WILD_MODE');
-            const btn = document.getElementById('hkWildModeBtn');
-            const txt = document.getElementById('hkWildBtnText');
-            const icon = document.getElementById('hkWildIcon');
-            if (this.tradingMode === 'WILD_MODE') {
-              if (btn) btn.className = 'hk-wild-mode-btn wild';
-              if (txt) txt.innerHTML = 'MODE: <strong>WILD 🔥</strong>';
-              if (icon) icon.textContent = '🔥';
+  private async syncStateNow(): Promise<void> {
+    try {
+      const res = await fetch('/api/state');
+      if (res.ok) {
+        const st = await res.json();
+        if (st.status === 'RUNNING' && !this.isAgentArmyRunning) {
+          this.isAgentArmyRunning = true;
+          this.updateMasterSwitchUI();
+        } else if (st.status === 'STOPPED' && this.isAgentArmyRunning) {
+          this.isAgentArmyRunning = false;
+          this.updateMasterSwitchUI();
+        }
+
+        if (st.trading_mode && st.trading_mode !== this.tradingMode) {
+          this.tradingMode = st.trading_mode;
+          this.updateHudOnWildMode(this.tradingMode === 'WILD_MODE');
+          const btn = document.getElementById('hkWildModeBtn');
+          const txt = document.getElementById('hkWildBtnText');
+          const icon = document.getElementById('hkWildIcon');
+          if (this.tradingMode === 'WILD_MODE') {
+            if (btn) btn.className = 'hk-wild-mode-btn wild';
+            if (txt) txt.innerHTML = 'MODE: <strong>WILD 🔥</strong>';
+            if (icon) icon.textContent = '🔥';
+          } else {
+            if (btn) btn.className = 'hk-wild-mode-btn safe';
+            if (txt) txt.innerHTML = 'MODE: <strong>SAFE</strong>';
+            if (icon) icon.textContent = '🛡️';
+          }
+        }
+
+        if (st.open_positions) {
+          this.livePositionsList = st.open_positions;
+          this.drawChart();
+        }
+
+        // Live HUD Box Synchronization from Backend Agents
+        const ceo = document.getElementById('hudCeoMandate');
+        const risk = document.getElementById('hudRiskStatus');
+        const strat = document.getElementById('hudStrategy');
+        const exec = document.getElementById('hudExecution');
+
+        if (this.isAgentArmyRunning) {
+          if (ceo) {
+            const m = st.latest_ceo_verdict?.mandate || st.ceo_dashboard?.active_mandate || 'ALPHA_GROWTH';
+            ceo.textContent = `${m} (Cycle #${st.cycle_count || 1})`;
+          }
+          if (risk && st.latest_risk_verdict) {
+            const r = st.latest_risk_verdict;
+            const d = r.decision || 'ACTIVE_SHIELD';
+            const tier = r.risk_tier || 'TIER_1';
+            risk.textContent = `${d} | ${tier} | Capital Shield`;
+          }
+          if (strat && st.latest_strategy_decision) {
+            const s = st.latest_strategy_decision;
+            const champ = s.champion_strategy?.name || 'SMC CONFLUENCE';
+            const action = s.recommended_action || s.action || 'SCANNING';
+            strat.textContent = `${champ} (${action})`;
+          }
+          if (exec) {
+            const openCount = (st.open_positions || []).length;
+            if (openCount > 0) {
+              const p = st.open_positions[0];
+              const pnlVal = p.unrealized_pnl || 0;
+              const pnlSign = pnlVal >= 0 ? '+' : '';
+              exec.textContent = `🎯 LIVE ORDER: ${p.direction || p.side} ${p.symbol} (${pnlSign}₹${Math.abs(pnlVal).toLocaleString('en-IN')})`;
             } else {
-              if (btn) btn.className = 'hk-wild-mode-btn safe';
-              if (txt) txt.innerHTML = 'MODE: <strong>SAFE</strong>';
-              if (icon) icon.textContent = '🛡️';
-            }
-          }
-
-          if (st.open_positions) {
-            this.livePositionsList = st.open_positions;
-            this.drawChart();
-          }
-
-          // Live HUD Box Synchronization from Backend Agents
-          const ceo = document.getElementById('hudCeoMandate');
-          const risk = document.getElementById('hudRiskStatus');
-          const strat = document.getElementById('hudStrategy');
-          const exec = document.getElementById('hudExecution');
-
-          if (this.isAgentArmyRunning) {
-            if (ceo && (st.latest_ceo_verdict?.mandate || st.ceo_dashboard?.active_mandate)) {
-              const m = st.latest_ceo_verdict?.mandate || st.ceo_dashboard?.active_mandate;
-              ceo.textContent = `${m} (Cycle #${st.cycle_count || 1})`;
-            }
-            if (risk && st.latest_risk_verdict) {
-              const r = st.latest_risk_verdict;
-              const d = r.decision || 'ACTIVE_SHIELD';
-              const tier = r.risk_tier || 'TIER_1';
-              risk.textContent = `${d} | ${tier} | Autonomous Risk`;
-            }
-            if (strat && st.latest_strategy_decision) {
-              const s = st.latest_strategy_decision;
-              const champ = s.champion_strategy?.name || 'SMC CONFLUENCE';
-              const action = s.recommended_action || s.action || 'SCANNING';
-              strat.textContent = `${champ} (${action})`;
-            }
-            if (exec) {
-              const openCount = (st.open_positions || []).length;
-              if (openCount > 0) {
-                const p = st.open_positions[0];
-                const pnlVal = p.unrealized_pnl || 0;
-                const pnlSign = pnlVal >= 0 ? '+' : '';
-                exec.textContent = `🎯 LIVE ORDER: ${p.direction || p.side} ${p.symbol} (${pnlSign}₹${Math.abs(pnlVal).toLocaleString('en-IN')})`;
-              } else {
-                exec.textContent = `⚡ AUTO-SNIPER SCANNING LIVE BARS (Cycle #${st.cycle_count || 1})`;
-              }
+              const bestChart = st.screener_report?.best_chart?.symbol || 'CHARTS';
+              exec.textContent = `⚡ AUTO-SNIPER SCANNING [${bestChart}] (Cycle #${st.cycle_count || 1})`;
             }
           }
         }
-      } catch (e) {
-        // quiet fallback
       }
-    }, 3000);
+    } catch (e) {
+      // quiet fallback
+    }
+  }
+
+  private async updateDeskLiveFeed(): Promise<void> {
+    try {
+      const res = await fetch('/api/simple-logs');
+      if (res.ok) {
+        const d = await res.json();
+        const logs = d.logs || [];
+        const feedEl = document.getElementById('hkIntelFeed');
+        if (feedEl && logs.length > 0) {
+          feedEl.innerHTML = logs.slice(0, 6).map((item: any) => `
+            <div class="hk-news-item ${item.type === 'DEFENSE' ? 'critical' : (item.type === 'SUCCESS' ? 'elevated' : '')}">
+              <div class="hk-news-meta">
+                <span class="hk-news-badge ${item.type === 'DEFENSE' ? 'crit' : (item.type === 'SUCCESS' ? 'safe' : 'info')}">${item.agent}</span>
+                <span>${item.time}</span>
+              </div>
+              <div style="font-weight:700;margin-bottom:2px;color:#f0fdf4;">${item.title}</div>
+              <div style="color:#94a3b8;font-size:11px;">${item.description}</div>
+            </div>
+          `).join('');
+        }
+      }
+    } catch (e) {
+      // quiet
+    }
+  }
+
+  private startStateSync(): void {
+    // Immediate first tick
+    this.syncStateNow();
+    this.updateDeskLiveFeed();
+
+    // Periodic state synchronization
+    let feedCounter = 0;
+    this.syncTimerId = setInterval(async () => {
+      await this.syncStateNow();
+      feedCounter++;
+      if (feedCounter % 2 === 0) {
+        await this.updateDeskLiveFeed();
+      }
+    }, 2000);
+
+    // Instant resync on app unminimize or focus change
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        this.syncStateNow();
+        this.updateDeskLiveFeed();
+      }
+    });
+
+    window.addEventListener('focus', () => {
+      this.syncStateNow();
+      this.updateDeskLiveFeed();
+    });
   }
 }

@@ -243,6 +243,73 @@ class TursoClient:
         ]
         return self.execute(sql, args)
 
+    def get_all_trades(self) -> List[Dict[str, Any]]:
+        """Retrieves all historical trades from Turso Cloud Database."""
+        sql = "SELECT id, symbol, market, side, entry_price, exit_price, quantity, pnl, pnl_percent, strategy, exit_reason, confidence, time, synced_at FROM trades ORDER BY synced_at ASC;"
+        res = self.execute(sql)
+        trades = []
+        try:
+            if "results" in res and res["results"] and res["results"][0].get("type") == "ok":
+                cols = [c["name"] for c in res["results"][0]["response"]["result"]["cols"]]
+                rows = res["results"][0]["response"]["result"]["rows"]
+                for r in rows:
+                    row_dict = {}
+                    for i, col in enumerate(cols):
+                        val = r[i].get("value")
+                        row_dict[col] = val
+                    
+                    pnl_val = float(row_dict.get("pnl") or 0.0)
+                    entry_val = float(row_dict.get("entry_price") or 0.0)
+                    exit_val = float(row_dict.get("exit_price") or 0.0)
+                    qty_val = float(row_dict.get("quantity") or 1.0)
+                    t_time = str(row_dict.get("time") or row_dict.get("synced_at") or "")
+                    
+                    trades.append({
+                        "trade_id": str(row_dict.get("id")),
+                        "id": str(row_dict.get("id")),
+                        "symbol": str(row_dict.get("symbol") or "NIFTY 50"),
+                        "market": str(row_dict.get("market") or "CRYPTO"),
+                        "side": str(row_dict.get("side") or "BUY"),
+                        "direction": str(row_dict.get("side") or "BUY"),
+                        "entry_price": entry_val,
+                        "exit_price": exit_val,
+                        "initial_size": qty_val,
+                        "shares": qty_val,
+                        "realized_pnl": pnl_val,
+                        "pnl": pnl_val,
+                        "pnl_percent": float(row_dict.get("pnl_percent") or 0.0),
+                        "strategy": str(row_dict.get("strategy") or "Dynamic Quant Alpha"),
+                        "strategy_name": str(row_dict.get("strategy") or "Dynamic Quant Alpha"),
+                        "exit_reason": str(row_dict.get("exit_reason") or "TP/SL Exit"),
+                        "confidence": float(row_dict.get("confidence") or 0.85),
+                        "entry_time": t_time,
+                        "exit_time": t_time,
+                        "timestamp_close": t_time,
+                        "status": "CLOSED"
+                    })
+        except Exception as e:
+            logger.error(f"[TursoSync] Failed to parse trades from Turso: {e}")
+        return trades
+
+    def get_all_neural_memories(self) -> List[Dict[str, Any]]:
+        """Retrieves neural memories from Turso Cloud Database."""
+        sql = "SELECT id, trade_id, symbol, outcome, pnl, regime, lesson, counterfactual_note, learned_at FROM neural_memory ORDER BY learned_at ASC;"
+        res = self.execute(sql)
+        mems = []
+        try:
+            if "results" in res and res["results"] and res["results"][0].get("type") == "ok":
+                cols = [c["name"] for c in res["results"][0]["response"]["result"]["cols"]]
+                rows = res["results"][0]["response"]["result"]["rows"]
+                for r in rows:
+                    row_dict = {}
+                    for i, col in enumerate(cols):
+                        val = r[i].get("value")
+                        row_dict[col] = val
+                    mems.append(row_dict)
+        except Exception as e:
+            logger.error(f"[TursoSync] Failed to parse neural memories from Turso: {e}")
+        return mems
+
     def get_status(self) -> Dict[str, Any]:
         """Returns connection status and trade counts from Turso."""
         res = self.execute("SELECT COUNT(*) FROM trades;")

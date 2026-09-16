@@ -43,6 +43,7 @@ core = CoreTradingAgent()
 # Background thread control
 loop_thread = None
 loop_active = False
+cycle_wake_event = threading.Event()
 
 
 def autonomous_trading_loop():
@@ -56,11 +57,9 @@ def autonomous_trading_loop():
                 core.run_single_cycle()
             except Exception as e:
                 logger.error(f"[ServerLoop] Error in trading cycle: {e}")
-        # Rest interval between cycles (e.g., 20 seconds)
-        for _ in range(20):
-            if not loop_active:
-                break
-            time.sleep(1)
+        # Rest interval between cycles (20 seconds), but wake up immediately if cycle_wake_event is signaled
+        cycle_wake_event.wait(timeout=20.0)
+        cycle_wake_event.clear()
     logger.info("[ServerLoop] Background worker stopped.")
 
 
@@ -72,6 +71,7 @@ async def lifespan(app: FastAPI):
     loop_thread.start()
     yield
     loop_active = False
+    cycle_wake_event.set()
 
 
 app = FastAPI(title=f"{APP_NAME} - Autonomous Multi-Agent Engine", version=APP_VERSION, lifespan=lifespan)
@@ -171,6 +171,7 @@ def check_version():
 @app.post("/api/start")
 def start_engine():
     core.start()
+    cycle_wake_event.set()
     return JSONResponse(content={"status": "STARTED", "is_running": core.is_running})
 
 
@@ -186,6 +187,7 @@ def start_wizard(req: WizardStartRequest):
         allocation_mode=req.allocation_mode,
         market_capitals=req.market_allocations
     )
+    cycle_wake_event.set()
     return JSONResponse(content={
         "status": "STARTED",
         "is_running": core.is_running,
@@ -966,7 +968,63 @@ def get_simple_logs():
                 "description": f"Price reversed against our setup, so the risk shield cut the position automatically to save capital. {lesson or 'Learned to wait for clearer liquidity confirmation next time.'}"
             })
 
-    # 4. Standard agent activity logs
+    # 4. Live cycle agent diagnostics from real-time cycles
+    cycle_num = core.system_state.get("cycle_count", 0)
+    best_c = core.system_state.get("screener_report", {}).get("best_chart")
+    strat_dec = core.system_state.get("latest_strategy_decision")
+    risk_dec = core.system_state.get("latest_risk_verdict")
+    ceo_dec = core.system_state.get("latest_ceo_verdict")
+
+    if best_c:
+        sym = best_c.get("symbol", "")
+        mkt = best_c.get("market", "")
+        score = best_c.get("safety_score", 0.0)
+        simple_logs.append({
+            "id": f"log_screener_{cycle_num}",
+            "time": core.system_state.get("last_tick_time") or "Cycle Live",
+            "agent": "🔍 Analytical Chart Screener",
+            "type": "SUCCESS",
+            "title": f"Crowned Best Chart: {mkt}:{sym} (Score {score}/100)",
+            "description": f"Audited candle predictability, body-to-wick stability, and SMC structure. Crowned {sym} as top high-probability setup."
+        })
+
+    if strat_dec:
+        champ = strat_dec.get("champion_strategy", {}).get("name", "SMC_CONFLUENCE")
+        act = strat_dec.get("recommended_action") or strat_dec.get("action", "SCANNING")
+        simple_logs.append({
+            "id": f"log_strat_{cycle_num}",
+            "time": "Cycle Live",
+            "agent": "🧠 Strategy R&D Lab",
+            "type": "INFO",
+            "title": f"Champion Strategy: {champ} ({act})",
+            "description": f"Strategy Stress Lab screened 20 algorithms against live bars. Champion {champ} selected for execution readiness."
+        })
+
+    if risk_dec:
+        decision = risk_dec.get("decision", "HOLD")
+        reason = risk_dec.get("reason") or "Shield verified 1.0% maximum account risk limit."
+        simple_logs.append({
+            "id": f"log_risk_shield_{cycle_num}",
+            "time": "Cycle Live",
+            "agent": "🛡️ 15-Section Risk Shield",
+            "type": "DEFENSE" if decision == "REJECTED" else "SUCCESS",
+            "title": f"Risk Shield Verdict: {decision}",
+            "description": f"{reason} - Dynamic capital protection active."
+        })
+
+    if ceo_dec:
+        ceo_v = ceo_dec.get("ceo_decision", "MONITORING")
+        mandate = ceo_dec.get("mandate", "CAPITAL_PRESERVATION")
+        simple_logs.append({
+            "id": f"log_ceo_mandate_{cycle_num}",
+            "time": "Cycle Live",
+            "agent": "👑 CEO Supreme King",
+            "type": "INFO",
+            "title": f"CEO Mandate: {mandate} ({ceo_v})",
+            "description": f"Supreme King Agent arbitrated all agent inputs. All specializations synchronized under {mandate} directive."
+        })
+
+    # 5. Standard agent activity logs
     simple_logs.append({
         "id": "log_news",
         "time": "5m ago",

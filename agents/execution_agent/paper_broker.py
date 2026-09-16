@@ -65,10 +65,24 @@ class PaperBroker:
     }
 
     def __init__(self, starting_balance: float = 500000.0):
-        self.balance = starting_balance
         self.starting_balance = starting_balance
+        self.balance = starting_balance
         self.open_positions: Dict[str, Dict[str, Any]] = {}
         self.trade_history: List[Dict[str, Any]] = []
+        self._hydrate_from_cloud()
+
+    def _hydrate_from_cloud(self):
+        """Hydrates past closed trades from Turso Cloud Database on initialization."""
+        try:
+            from shared_brain.turso_sync import turso_client
+            cloud_trades = turso_client.get_all_trades()
+            if cloud_trades:
+                self.trade_history = cloud_trades
+                total_realized_pnl = sum(float(t.get("realized_pnl", 0.0)) for t in self.trade_history)
+                self.balance = self.starting_balance + total_realized_pnl
+                logger.info(f"[PaperBroker] Hydrated {len(self.trade_history)} trades from Turso Cloud. Adjusted Balance: ₹{self.balance:,.2f}")
+        except Exception as e:
+            logger.warning(f"[PaperBroker] Cloud trade hydration deferred: {e}")
 
     def reset(self, starting_balance: float = 500000.0):
         """Cleans out open positions and trade history and re-allocates starting capital."""
