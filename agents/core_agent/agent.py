@@ -59,8 +59,8 @@ class CoreTradingAgent:
         self.strategy_agent = StrategyRndAgent(self.brain)
         self.backtest_agent = StrategyBacktestAgent(self.board)
         self.evolution_agent = EvolutionMemoryAgent()
-        self.risk_agent = RiskManagementAgent(account_balance=100000.0)
-        self.execution_agent = ExecutionAgent(starting_balance=100000.0)
+        self.risk_agent = RiskManagementAgent(account_balance=500000.0)
+        self.execution_agent = ExecutionAgent(starting_balance=500000.0)
         self.ceo_agent = CEOAgent(self.brain)
         self.clone_manager = ShadowCloneManager()
         self.started_at: Optional[float] = None
@@ -200,55 +200,37 @@ class CoreTradingAgent:
         self.system_state["currency"] = currency
         self.system_state["allocation_mode"] = allocation_mode
 
-        # Calculate per-market capital allocation
-        # We ensure starting_capital is properly distributed across all selected markets
+        # Institutional Multi-Market Allocation: Each market receives dedicated ₹1,00,000 capital
+        standard_markets = ["INDIAN_STOCKS", "US_STOCKS", "CRYPTO", "COMMODITIES", "FOREX"]
         alloc_map = {}
         if market_capitals and len(market_capitals) > 0:
             alloc_map = {k.upper(): float(v) for k, v in market_capitals.items()}
-            total_cap = sum(alloc_map.values())
-        elif allocation_mode == "PER_MARKET":
-            # Dedicated amount per market
-            alloc_map = {m: float(starting_capital) for m in active_list}
-            total_cap = float(starting_capital) * len(active_list)
         else:
-            # DISTRIBUTED_TOTAL: Distribute the user's total fund properly among markets
-            # Standard institutional weights (Indian 30%, Crypto 25%, US 25%, Commodities 20%)
-            raw_weights = {
-                "INDIAN_STOCKS": 0.30,
-                "CRYPTO": 0.25,
-                "US_STOCKS": 0.25,
-                "COMMODITIES": 0.20,
-                "FOREX": 0.20
-            }
-            sum_weights = sum(raw_weights.get(m, 0.25) for m in active_list) or 1.0
-            alloc_map = {}
-            running_sum = 0.0
-            for idx, m in enumerate(active_list):
-                if idx == len(active_list) - 1:
-                    # Last market gets remainder to guarantee exact total matching
-                    alloc_map[m] = round(float(starting_capital) - running_sum, 2)
-                else:
-                    portion = round(float(starting_capital) * (raw_weights.get(m, 0.25) / sum_weights), 2)
-                    alloc_map[m] = portion
-                    running_sum += portion
-            total_cap = float(starting_capital)
-
+            # Each market gets dedicated ₹1,00,000 to trade
+            target_list = active_list if active_list and "ALL" not in active_list else standard_markets
+            for m in standard_markets:
+                alloc_map[m] = 100000.0
+        
+        total_cap = sum(alloc_map.values())
         self.system_state["market_allocations"] = alloc_map
         self.system_state["starting_market_allocations"] = dict(alloc_map)
+        self.execution_agent.broker.market_starting_cap = dict(alloc_map)
         self.execution_agent.broker.starting_balance = total_cap
-        if not self.execution_agent.broker.trade_history:
-            self.execution_agent.broker.balance = total_cap
+        
+        # Recalculate cash balance based on actual starting capital and realized trades
+        total_realized_pnl = sum(float(t.get("realized_pnl", t.get("pnl", 0.0))) for t in self.execution_agent.broker.trade_history)
+        self.execution_agent.broker.balance = total_cap + total_realized_pnl
 
         self.start()
         logger.info(
-            f"[CoreAgent] Configured & Started: markets={markets}, mode={allocation_mode}, "
-            f"allocations={alloc_map}, total_distributed_fund={total_cap:,.2f} {currency}"
+            f"[CoreAgent] Configured & Started: Each market allocated ₹1,00,000. "
+            f"Allocations={alloc_map}, Total Portfolio Capital=₹{total_cap:,.2f} {currency}"
         )
 
     def reset_state(self, starting_capital: float = 500000.0):
         """Halts engine and cleanly resets portfolio, trade history, and evolution ledger."""
         self.stop()
-        self.execution_agent.broker.reset(starting_capital)
+        self.execution_agent.broker.reset(starting_balance=500000.0, per_market_capital=100000.0)
         # Clear ledger
         clean_ledger = {
             "agent_level": 1,

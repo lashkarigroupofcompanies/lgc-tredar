@@ -486,37 +486,63 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
     elif df_upper != "ALL" and "-" in df_upper:
         filtered_trades = [t for t in filtered_trades if t["date"] == df_upper]
 
-    if mf_upper not in ["ALL", "TOTAL"]:
-        filtered_trades = [t for t in filtered_trades if t.get("market") == mf_upper]
+    alloc_map = core.system_state.get("market_allocations", {})
+    if not alloc_map:
+        alloc_map = {
+            "INDIAN_STOCKS": 100000.0,
+            "US_STOCKS": 100000.0,
+            "CRYPTO": 100000.0,
+            "COMMODITIES": 100000.0,
+            "FOREX": 100000.0
+        }
 
-    open_positions = []
+    all_open_positions = []
     for pos_id, pos in broker.open_positions.items():
-        open_positions.append({
+        all_open_positions.append({
             "id": pos_id,
-            "symbol": pos.get("symbol", "BTC"),
-            "market": pos.get("market", "CRYPTO"),
+            "symbol": pos.get("symbol", "NIFTY 50"),
+            "market": pos.get("market", "INDIAN_STOCKS"),
             "side": pos.get("direction", "BUY"),
             "entry_price": float(pos.get("entry_price", 0.0)),
             "current_price": float(pos.get("current_price", pos.get("entry_price", 0.0))),
             "unrealized_pnl": float(pos.get("unrealized_pnl", 0.0)),
-            "shares": float(pos.get("shares", 1.0)),
+            "shares": float(pos.get("shares", pos.get("remaining_units", 1.0))),
             "stop_loss": float(pos.get("stop_loss", 0.0)),
             "target1": float(pos.get("take_profit_1", 0.0)),
             "target2": float(pos.get("take_profit_2", 0.0)),
             "horizon": pos.get("horizon", "Short-Term Intraday"),
-            "strategy": pos.get("strategy_name", "EMA_MOMENTUM")
+            "strategy": pos.get("strategy_name", "ORDER_FLOW_MOMENTUM")
         })
 
-    starting_cap = float(broker.starting_balance)
-    current_equity = float(broker.balance + sum(p.get("unrealized_pnl", 0.0) for p in open_positions))
-    total_pnl = current_equity - starting_cap
+    # Scope filtering based on market_filter
+    if mf_upper not in ["ALL", "TOTAL"]:
+        filtered_trades = [t for t in filtered_trades if t.get("market") == mf_upper]
+        scoped_open_positions = [p for p in all_open_positions if p.get("market") == mf_upper]
+        starting_cap = float(alloc_map.get(mf_upper, 100000.0))
+    else:
+        scoped_open_positions = all_open_positions
+        starting_cap = float(sum(alloc_map.values()))
+
+    # Airtight Institutional P&L Math:
+    # Realized = sum of closed trade PnLs in scope
+    # Unrealized = sum of active open position floating PnLs in scope
+    # Total P&L = Realized + Unrealized
+    # Equity = Starting Capital + Total P&L (Impossible to show false loss when in profit!)
+    realized_pnl = sum(t["pnl"] for t in filtered_trades)
+    unrealized_pnl = sum(p.get("unrealized_pnl", 0.0) for p in scoped_open_positions)
+    total_pnl = realized_pnl + unrealized_pnl
+    current_equity = starting_cap + total_pnl
     total_pnl_pct = round((total_pnl / max(1.0, starting_cap)) * 100.0, 2)
     
+    margin_used = sum(float(p.get("entry_price", 0.0)) * float(p.get("shares", 1.0)) * 0.20 for p in scoped_open_positions)
+    available_cash = max(0.0, current_equity - margin_used)
+
     wins = [t for t in filtered_trades if t["pnl"] > 0]
     losses = [t for t in filtered_trades if t["pnl"] < 0]
     total_closed = len(filtered_trades)
     win_rate = round((len(wins) / max(1, total_closed)) * 100.0, 1) if total_closed > 0 else 0.0
 
+    # Equity Curve starts at starting_cap (₹1,00,000 or ₹5,00,000) and tracks cumulative returns
     equity_curve = [{"point": 0, "equity": starting_cap, "pnl": 0.0, "label": "Start"}]
     running_eq = starting_cap
     for idx, t in enumerate(filtered_trades):
@@ -529,7 +555,7 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
         })
 
     market_counts = {}
-    for t in all_combined_trades + open_positions:
+    for t in all_combined_trades + all_open_positions:
         m = t.get("market", "INDIAN_STOCKS")
         market_counts[m] = market_counts.get(m, 0) + 1
     
@@ -541,27 +567,25 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
 
     evo_state = core.evolution_agent.state
 
-    # Per-market financial value growth tracking [Money in INR]
-    alloc_map = core.system_state.get("market_allocations", {})
-    if not alloc_map:
-        alloc_map = {
-            "INDIAN_STOCKS": round(starting_cap * 0.30, 2),
-            "CRYPTO": round(starting_cap * 0.25, 2),
-            "US_STOCKS": round(starting_cap * 0.25, 2),
-            "COMMODITIES": round(starting_cap * 0.20, 2)
-        }
-
+    # Per-market dedicated portfolio cards and financial breakdown (₹1,00,000 each)
     market_breakdown = []
+    market_portfolios = {}
     for m_key, m_label in known_markets:
-        alloc = float(alloc_map.get(m_key, starting_cap / len(known_markets)))
+        alloc = float(alloc_map.get(m_key, 100000.0))
         m_closed = [t for t in all_combined_trades if t.get("market") == m_key]
-        m_open = [p for p in open_positions if p.get("market") == m_key]
+        m_open = [p for p in all_open_positions if p.get("market") == m_key]
         
-        realized = sum(t["pnl"] for t in m_closed)
-        unrealized = sum(p.get("unrealized_pnl", 0.0) for p in m_open)
-        net_growth = realized + unrealized
-        current_val = alloc + net_growth
-        pct_growth = round((net_growth / max(1.0, alloc)) * 100.0, 2)
+        m_real = sum(t["pnl"] for t in m_closed)
+        m_unreal = sum(p.get("unrealized_pnl", 0.0) for p in m_open)
+        m_tot = m_real + m_unreal
+        m_cur = alloc + m_tot
+        m_pct = round((m_tot / max(1.0, alloc)) * 100.0, 2)
+        m_margin = sum(float(p.get("entry_price", 0.0)) * float(p.get("shares", 1.0)) * 0.20 for p in m_open)
+        m_cash = max(0.0, m_cur - m_margin)
+
+        m_wins = [t for t in m_closed if t["pnl"] > 0]
+        m_losses = [t for t in m_closed if t["pnl"] < 0]
+        m_win_rate = round((len(m_wins) / max(1, len(m_closed))) * 100.0, 1) if m_closed else 0.0
         
         m_curve = [{"point": 0, "equity": alloc, "pnl": 0.0}]
         m_run = alloc
@@ -569,19 +593,29 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
             m_run += t["pnl"]
             m_curve.append({"point": idx + 1, "equity": round(m_run, 2), "pnl": round(t["pnl"], 2)})
 
-        market_breakdown.append({
+        mb_item = {
             "market": m_key,
             "label": m_label,
             "allocated_capital": round(alloc, 2),
-            "current_value": round(current_val, 2),
-            "net_growth_money": round(net_growth, 2),
-            "growth_percent": pct_growth,
-            "realized_pnl": round(realized, 2),
-            "unrealized_pnl": round(unrealized, 2),
+            "starting_capital": round(alloc, 2),
+            "current_value": round(m_cur, 2),
+            "net_growth_money": round(m_tot, 2),
+            "total_pnl": round(m_tot, 2),
+            "growth_percent": m_pct,
+            "pnl_percent": m_pct,
+            "realized_pnl": round(m_real, 2),
+            "unrealized_pnl": round(m_unreal, 2),
+            "available_cash": round(m_cash, 2),
+            "margin_used": round(m_margin, 2),
             "open_positions": len(m_open),
             "total_trades": len(m_closed),
+            "wins": len(m_wins),
+            "losses": len(m_losses),
+            "win_rate": m_win_rate,
             "equity_curve": m_curve
-        })
+        }
+        market_breakdown.append(mb_item)
+        market_portfolios[m_key] = mb_item
 
     today_trades_all = [t for t in all_combined_trades if t["date"] == today_str]
 
@@ -590,11 +624,13 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
             "currency": "₹",
             "total_pnl": round(total_pnl, 2),
             "total_pnl_percent": total_pnl_pct,
+            "realized_pnl": round(realized_pnl, 2),
+            "unrealized_pnl": round(unrealized_pnl, 2),
             "filtered_pnl": round(sum(t["pnl"] for t in filtered_trades), 2),
             "current_capital": round(current_equity, 2),
             "starting_capital": round(starting_cap, 2),
-            "available_cash": round(broker.balance, 2),
-            "margin_used": round(max(0.0, current_equity - broker.balance), 2),
+            "available_cash": round(available_cash, 2),
+            "margin_used": round(margin_used, 2),
             "win_rate": win_rate,
             "total_trades": total_closed,
             "total_trades_all_time": len(all_combined_trades),
@@ -602,7 +638,7 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
             "pnl_today": round(sum(t["pnl"] for t in today_trades_all), 2),
             "wins_count": len(wins),
             "losses_count": len(losses),
-            "open_positions_count": len(open_positions),
+            "open_positions_count": len(scoped_open_positions),
             "is_running": core.is_running,
             "active_market": core.selected_market,
             "active_date_filter": df_upper,
@@ -614,10 +650,11 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
             "trades_by_market": trades_by_market,
             "today_date": today_str
         },
+        "market_portfolios": market_portfolios,
         "equity_curve": equity_curve,
         "market_allocation": market_allocation,
         "market_breakdown": market_breakdown,
-        "open_positions": open_positions,
+        "open_positions": scoped_open_positions,
         "trade_history": filtered_trades,
         "evolution": {
             "level": evo_state.get("agent_level", 1),

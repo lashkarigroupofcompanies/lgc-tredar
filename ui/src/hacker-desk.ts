@@ -2369,87 +2369,98 @@ export class HackerDeskController {
     let mainContentHtml = '';
 
     if (this.activeAnalysisMainTab === 'OVERVIEW') {
+      const isTotalView = this.activeAnalysisMarketFilter === 'ALL' || this.activeAnalysisMarketFilter === 'TOTAL';
+      const mktName = isTotalView ? 'TOTAL PORTFOLIO' : (this.activeAnalysisMarketFilter.replace('_STOCKS', ' EQUITIES'));
+      
       mainContentHtml = `
-        <!-- Row 1: KPI Cards -->
-        <section class="hk-kpi-grid">
+        <!-- Section 1: Dedicated Multi-Market Portfolio Deck (Each gets ₹1,00,000) -->
+        ${this.renderPortfolioDeck(data, cur)}
+
+        <!-- Section 2: Spacious 4-Card Master KPI Grid -->
+        <section class="hk-kpi-grid" style="margin-top:16px;">
+          <!-- Card 1: Valuation & Return -->
           <div class="hk-kpi-card">
-            <div class="hk-kpi-title">TOTAL P&L (ALL-TIME)</div>
+            <div class="hk-kpi-title">
+              <span>${mktName} VALUATION</span>
+              <span style="font-size:10px;color:#00f2fe;font-weight:700;">● LIVE BOOK</span>
+            </div>
+            <div class="hk-kpi-value ${isPnlPositive ? 'green' : 'red'}">
+              ${cur}${(s.current_capital || s.starting_capital || (isTotalView ? 500000 : 100000)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+            <div class="hk-kpi-sub">
+              <span>Starting: ${cur}${(s.starting_capital || (isTotalView ? 500000 : 100000)).toLocaleString('en-IN')}</span>
+              <span class="hk-ptp-pnl ${isPnlPositive ? 'positive' : 'negative'}">
+                ${isPnlPositive ? '▲ +' : '▼ -'}${Math.abs(s.total_pnl_percent || 0).toFixed(2)}%
+              </span>
+            </div>
+          </div>
+
+          <!-- Card 2: Net P&L (Realized & Unrealized) -->
+          <div class="hk-kpi-card">
+            <div class="hk-kpi-title">
+              <span>NET PROFIT & LOSS</span>
+              <span class="hk-ptp-pnl ${isPnlPositive ? 'positive' : 'negative'}" style="font-size:9px;">
+                ${isPnlPositive ? 'IN PROFIT' : 'DRAWDOWN'}
+              </span>
+            </div>
             <div class="hk-kpi-value ${isPnlPositive ? 'green' : 'red'}">
               ${isPnlPositive ? '+' : ''}${cur}${Math.abs(s.total_pnl || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
-            <div class="hk-kpi-sub ${isPnlPositive ? 'green' : 'red'}">
-              <span>${isPnlPositive ? '▲' : '▼'} ${(s.total_pnl_percent || 0).toFixed(2)}%</span>
-              <span style="color:#64748b;">(Virtual Return)</span>
+            <div class="hk-kpi-sub" style="justify-content:space-between;width:100%;">
+              <span style="color:#00ff66;">Booked: ${cur}${(s.realized_pnl || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}</span>
+              <span style="color:#38bdf8;">Floating: ${cur}${(s.unrealized_pnl || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}</span>
             </div>
           </div>
 
+          <!-- Card 3: Available Cash & Margin In Use -->
           <div class="hk-kpi-card">
-            <div class="hk-kpi-title">CURRENT PORTFOLIO VALUE</div>
-            <div class="hk-kpi-value">
-              ${cur}${(s.current_capital || this.wizardCapital).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            <div class="hk-kpi-title">
+              <span>AVAILABLE CASH & MARGIN</span>
+              <span style="font-size:10px;color:#38bdf8;">LIQUIDITY</span>
             </div>
-            <div class="hk-kpi-sub">
-              <span>Initial: ${cur}${(s.starting_capital || this.wizardCapital).toLocaleString('en-IN')}</span>
-            </div>
-          </div>
-
-          <div class="hk-kpi-card">
-            <div class="hk-kpi-title">AVAILABLE CASH / MARGIN</div>
             <div class="hk-kpi-value cyan">
-              ${cur}${(s.available_cash || this.wizardCapital).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              ${cur}${(s.available_cash || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
             <div class="hk-kpi-sub">
               <span>Margin In Use: ${cur}${(s.margin_used || 0).toLocaleString('en-IN')}</span>
+              <span style="color:#64748b;">(20% Intraday)</span>
             </div>
           </div>
 
+          <!-- Card 4: Quant Win Accuracy & Trades -->
           <div class="hk-kpi-card">
-            <div class="hk-kpi-title">OVERALL WIN RATE</div>
+            <div class="hk-kpi-title">
+              <span>EXECUTION ACCURACY</span>
+              <span style="font-size:10px;color:#00ff66;">QUANT DISCIPLINE</span>
+            </div>
             <div class="hk-kpi-value green">
               ${(s.win_rate || 0).toFixed(1)}%
             </div>
             <div class="hk-kpi-sub">
               <span>${s.wins_count || 0} Wins • ${s.losses_count || 0} Losses</span>
-            </div>
-          </div>
-
-          <div class="hk-kpi-card" style="border-color:#143820;">
-            <div class="hk-kpi-title" style="color:#00ff66;">REAL EXECUTED TRADES</div>
-            <div class="hk-kpi-value amber" style="display:flex;align-items:baseline;gap:6px;">
-              ${s.total_trades || 0} <span style="font-size:12px;color:#64748b;">Executed</span>
-            </div>
-            <div class="hk-kpi-sub" style="flex-direction:column;align-items:flex-start;gap:4px;">
-              <div style="display:flex;justify-content:space-between;width:100%;font-size:10px;">
-                <span>Verified Executions</span>
-                <span style="color:#00ff66;">${(data.open_positions || []).length} Active Live</span>
-              </div>
-              <div style="width:100%;height:4px;background:#0d1c24;border-radius:2px;overflow:hidden;">
-                <div style="height:100%;width:${Math.min(100, Math.max(8, ((s.total_trades || 0) % 1000) * 0.1))}%;background:#00ff66;"></div>
-              </div>
+              <span style="color:#00f2fe;">${(data.open_positions || []).length} Live</span>
             </div>
           </div>
         </section>
 
-        <!-- Live P&L Meter for Every Trade (User Request #3) -->
+        <!-- Section 3: If in TOTAL PORTFOLIO, show dedicated 5-Market Books Deck -->
+        ${isTotalView ? this.renderTotalMarketPortfoliosGrid(data, cur) : this.renderMarketFocusBanner(data, cur)}
+
+        <!-- Section 4: Live P&L Meters (Only if there are positions or recent trades) -->
         ${this.renderLivePnlMetersSection(data, cur)}
 
-        <!-- Multi-Market Universe Performance Scorecards & Distribution -->
-        ${this.renderMarketPerformanceScorecards(data, cur)}
-        ${this.renderMarketPnLVisualChart(data, cur)}
-
-        <!-- Row 2: Dual Growth Visualizations (Agent Memory Growth + Money Value Growth) -->
-        <section class="hk-dual-charts-grid" style="margin-top:14px;">
+        <!-- Section 5: Dual Growth Visualizations (Agent Brain Intelligence + Equity Trajectory) -->
+        <section class="hk-dual-charts-grid" style="margin-top:16px;">
           <!-- Graph 1: Agent Brain Intelligence & Learning Curve Chart -->
           <div class="hk-chart-card">
             <div class="hk-chart-card-header">
               <span class="hk-chart-card-title">🧠 1. AGENT MEMORY & INTELLIGENCE GROWTH</span>
               <span style="font-size:10px;color:#00ff66;">NEURAL PATTERN RETENTION</span>
             </div>
-            <div style="height:210px;position:relative;">
+            <div style="height:220px;position:relative;">
               ${this.renderLearningGrowthCurve(data, cur)}
             </div>
             
-            <!-- Agent Progression & Memory Lessons -->
             <div style="margin-top:10px;border-top:1px solid #14281a;padding-top:8px;">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
                 <span style="font-size:11px;font-weight:700;color:#f0fdf4;">🎖️ Level ${evo.level || 1} • ${evo.rank || 'Novice Quant'}</span>
@@ -2457,9 +2468,6 @@ export class HackerDeskController {
               </div>
               <div class="hk-xp-bar-outer" style="margin-bottom:8px;">
                 <div class="hk-xp-bar-inner" style="width:${Math.min(100, ((evo.xp || 0) / (evo.xp_next_level || 250)) * 100)}%;"></div>
-              </div>
-              <div style="font-size:10px;font-weight:700;color:#94a3b8;margin-bottom:4px;">
-                Active Learned Principles (What Agents Learned):
               </div>
               <div class="hk-adaptation-list" style="max-height:85px;overflow-y:auto;">
                 ${(evo.lessons && evo.lessons.length > 0 ? evo.lessons : [
@@ -2473,23 +2481,20 @@ export class HackerDeskController {
             </div>
           </div>
 
-          <!-- Graph 2: Property & Financial Money Value Growth [₹ INR] Chart -->
+          <!-- Graph 2: Equity Trajectory in INR -->
           <div class="hk-chart-card">
             <div class="hk-chart-card-header">
-              <span class="hk-chart-card-title">💰 2. PROPERTY & MARKET VALUE GROWTH [MONEY ₹]</span>
-              <span style="font-size:10px;color:#00f2fe;">EQUITY TRAJECTORY IN INR</span>
+              <span class="hk-chart-card-title">💰 2. EQUITY TRAJECTORY [MONEY ${cur}]</span>
+              <span style="font-size:10px;color:#00f2fe;">${mktName} CURVE</span>
             </div>
-            <div style="height:310px;position:relative;">
+            <div style="height:320px;position:relative;">
               ${this.renderPropertyMoneyGrowthCurve(data, cur)}
             </div>
           </div>
         </section>
 
-        <!-- Row 3: Proper Market Capital Growth Breakdown Cards -->
-        ${this.renderMarketBreakdownCards(data, cur)}
-
-        <!-- Row 4: Positions & Historical Trades Table -->
-        <section class="hk-table-card" style="margin-top:14px;">
+        <!-- Section 6: Positions & Historical Trades Table -->
+        <section class="hk-table-card" style="margin-top:16px;">
           <div class="hk-table-tab-bar">
             <div class="hk-table-tabs">
               <button class="hk-table-tab-btn ${this.activeAnalysisTab === 'POSITIONS' ? 'active' : ''}" id="hkTabPositionsBtn">
@@ -2748,6 +2753,22 @@ export class HackerDeskController {
       });
     }
 
+    // Dedicated Multi-Market Portfolio Selector (Individual ₹1,00,000 Books)
+    body.querySelectorAll('[data-portfolio]').forEach(el => {
+      el.addEventListener('click', () => {
+        const port = el.getAttribute('data-portfolio');
+        if (port) {
+          this.activeAnalysisMarketFilter = port;
+          this.loadAnalysisData();
+        }
+      });
+    });
+
+    document.getElementById('hkBackToTotalPortfolioBtn')?.addEventListener('click', () => {
+      this.activeAnalysisMarketFilter = 'ALL';
+      this.loadAnalysisData();
+    });
+
     // Market Growth Filter Tabs
     body.querySelectorAll('.hk-market-tab-pill').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -2766,6 +2787,198 @@ export class HackerDeskController {
         }
       });
     });
+  }
+
+  // --- Dedicated Multi-Market Paper Trading Portfolio Deck (₹1,00,000 Per Market) ---
+  private renderPortfolioDeck(data: any, cur: string): string {
+    const s = data.summary || {};
+    const mp = data.market_portfolios || {};
+    const curMkt = this.activeAnalysisMarketFilter || 'ALL';
+
+    const pillConfigs = [
+      { key: 'ALL', flag: '🌐', label: 'TOTAL PORTFOLIO', defaultCap: 500000 },
+      { key: 'INDIAN_STOCKS', flag: '🇮🇳', label: 'INDIAN STOCKS', defaultCap: 100000 },
+      { key: 'US_STOCKS', flag: '🇺🇸', label: 'US STOCKS', defaultCap: 100000 },
+      { key: 'CRYPTO', flag: '🪙', label: 'CRYPTO', defaultCap: 100000 },
+      { key: 'COMMODITIES', flag: '⚡', label: 'COMMODITIES', defaultCap: 100000 },
+      { key: 'FOREX', flag: '💱', label: 'FOREX', defaultCap: 100000 }
+    ];
+
+    return `
+      <div class="hk-portfolio-deck">
+        <div class="hk-portfolio-deck-header">
+          <div class="hk-portfolio-deck-title">
+            <span class="hk-deck-icon">🏛️</span>
+            <div>
+              <span class="hk-deck-label">MULTI-MARKET PAPER TRADING PORTFOLIO DECK</span>
+              <span class="hk-deck-sub">Each stock market gets dedicated ₹1,00,000 capital • Click any tab to view its dedicated portfolio</span>
+            </div>
+          </div>
+          <div class="hk-deck-badges">
+            <span class="hk-deck-pill total">Total Capital: ${cur}5,00,000</span>
+            <span class="hk-deck-pill market">₹1,00,000 Per Market</span>
+          </div>
+        </div>
+
+        <div class="hk-portfolio-tabs">
+          ${pillConfigs.map(p => {
+            const isActive = curMkt === p.key || (curMkt === 'TOTAL' && p.key === 'ALL');
+            let cap = p.defaultCap;
+            let val = cap;
+            let pnl = 0.0;
+            let pnlPct = 0.0;
+
+            if (p.key === 'ALL') {
+              cap = s.starting_capital || 500000;
+              val = s.current_capital || cap;
+              pnl = s.total_pnl || 0;
+              pnlPct = s.total_pnl_percent || 0;
+            } else if (mp[p.key]) {
+              const item = mp[p.key];
+              cap = item.starting_capital || 100000;
+              val = item.current_value || cap;
+              pnl = item.total_pnl || 0;
+              pnlPct = item.pnl_percent || 0;
+            }
+
+            const isPos = pnl >= 0;
+            const pnlClass = pnl > 0 ? 'positive' : (pnl < 0 ? 'negative' : 'neutral');
+
+            return `
+              <div class="hk-portfolio-tab-pill ${isActive ? 'active' : ''}" data-portfolio="${p.key}">
+                <div class="hk-ptp-top">
+                  <span class="hk-ptp-name"><span>${p.flag}</span> ${p.label}</span>
+                  <span class="hk-ptp-cap">${cur}${cap.toLocaleString('en-IN')}</span>
+                </div>
+                <div class="hk-ptp-bottom">
+                  <span class="hk-ptp-val">${cur}${val.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  <span class="hk-ptp-pnl ${pnlClass}">
+                    ${isPos ? '+' : ''}${cur}${Math.abs(pnl).toLocaleString('en-IN', { minimumFractionDigits: 0 })} (${isPos ? '+' : ''}${pnlPct.toFixed(1)}%)
+                  </span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  // --- Total Portfolio Multi-Market Individual ₹1,00,000 Books Grid ---
+  private renderTotalMarketPortfoliosGrid(data: any, cur: string): string {
+    const mp = data.market_portfolios || {};
+    const marketList = [
+      { key: 'INDIAN_STOCKS', flag: '🇮🇳', name: 'Indian Equities (NSE/BSE)', sub: '101 Monitored Assets' },
+      { key: 'US_STOCKS', flag: '🇺🇸', name: 'US Equities (NASDAQ/NYSE)', sub: '52 Tech & Bluechips' },
+      { key: 'CRYPTO', flag: '🪙', name: 'Global Crypto (BTC/ETH/SOL)', sub: '53 High-Volume Coins' },
+      { key: 'COMMODITIES', flag: '⚡', name: 'Commodities (Gold/Crude)', sub: '7 Precious & Energy' },
+      { key: 'FOREX', flag: '💱', name: 'Global Forex (Major Pairs)', sub: '16 Currency Pairs' }
+    ];
+
+    return `
+      <section style="margin-top:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <div style="font-family:var(--hk-font-mono);font-size:13px;font-weight:800;color:#f0fdf4;display:flex;align-items:center;gap:8px;">
+            <span>📊</span> DEDICATED INDIVIDUAL MARKET PORTFOLIOS (₹1,00,000 EACH)
+          </div>
+          <span style="font-size:11px;color:#64748b;font-family:var(--hk-font-mono);">
+            Click any market card to drill down into its dedicated portfolio
+          </span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(230px, 1fr));gap:14px;">
+          ${marketList.map(m => {
+            const item = mp[m.key] || {
+              starting_capital: 100000,
+              current_value: 100000,
+              total_pnl: 0,
+              pnl_percent: 0,
+              realized_pnl: 0,
+              unrealized_pnl: 0,
+              total_trades: 0,
+              wins: 0,
+              losses: 0,
+              win_rate: 0,
+              open_positions: 0
+            };
+            const isPos = (item.total_pnl || 0) >= 0;
+
+            return `
+              <div class="hk-market-breakdown-card" data-portfolio="${m.key}" style="cursor:pointer;background:#050f18;border:1px solid #142838;border-radius:10px;padding:16px;transition:all 0.2s ease;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:20px;">${m.flag}</span>
+                    <div>
+                      <div style="font-family:var(--hk-font-mono);font-size:12px;font-weight:800;color:#f0fdf4;">${m.name}</div>
+                      <div style="font-size:10px;color:#64748b;">${m.sub}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;">
+                  <div>
+                    <div style="font-size:10px;color:#64748b;font-family:var(--hk-font-mono);">CURRENT VALUE</div>
+                    <div style="font-family:var(--hk-font-mono);font-size:20px;font-weight:900;color:#f0fdf4;">
+                      ${cur}${(item.current_value || 100000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:10px;color:#64748b;font-family:var(--hk-font-mono);">NET P&L</div>
+                    <div style="font-family:var(--hk-font-mono);font-size:14px;font-weight:800;color:${isPos ? '#00ff66' : '#ff3366'};">
+                      ${isPos ? '+' : ''}${cur}${Math.abs(item.total_pnl || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#94a3b8;font-family:var(--hk-font-mono);border-top:1px solid #142838;padding-top:8px;margin-top:6px;">
+                  <span>Allocated: <strong style="color:#ffffff;">${cur}1,00,000</strong></span>
+                  <span style="color:${isPos ? '#00ff66' : '#ff3366'};font-weight:700;">
+                    ${isPos ? '▲ +' : '▼ -'}${(item.pnl_percent || 0).toFixed(2)}%
+                  </span>
+                </div>
+
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#64748b;font-family:var(--hk-font-mono);margin-top:6px;">
+                  <span>${item.total_trades || 0} Trades (${item.win_rate || 0}% WR)</span>
+                  <span style="color:#00f2fe;font-weight:700;">Open Portfolio →</span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </section>
+    `;
+  }
+
+  // --- Specific Market Focus Banner ---
+  private renderMarketFocusBanner(_data: any, cur: string): string {
+    const curMkt = this.activeAnalysisMarketFilter;
+    const nameMap: Record<string, { flag: string; title: string }> = {
+      INDIAN_STOCKS: { flag: '🇮🇳', title: 'Indian Equities (NSE/BSE)' },
+      US_STOCKS: { flag: '🇺🇸', title: 'US Equities (NASDAQ/NYSE)' },
+      CRYPTO: { flag: '🪙', title: 'Global Crypto Universe (BTC/ETH/SOL)' },
+      COMMODITIES: { flag: '⚡', title: 'Commodities Market (Gold/Silver/Crude)' },
+      FOREX: { flag: '💱', title: 'Forex Currency Pairs' }
+    };
+    const info = nameMap[curMkt] || { flag: '📈', title: curMkt };
+
+    return `
+      <div style="background:linear-gradient(90deg, #071f28, #05131e);border:1px solid #00f2fe;border-radius:10px;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:14px;box-shadow:0 4px 16px rgba(0,242,254,0.12);">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:24px;">${info.flag}</span>
+          <div>
+            <div style="font-family:var(--hk-font-mono);font-size:14px;font-weight:800;color:#f0fdf4;">
+              VIEWING DEDICATED PORTFOLIO: ${info.title}
+            </div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+              Dedicated ${cur}1,00,000 paper trading book • All metrics, positions, and history filtered to this market
+            </div>
+          </div>
+        </div>
+        <button class="hk-btn-ghost" id="hkBackToTotalPortfolioBtn" style="padding:8px 16px;font-size:11px;border-color:#00f2fe;color:#00f2fe;font-weight:700;cursor:pointer;">
+          ← Switch to Total Portfolio (${cur}5,00,000)
+        </button>
+      </div>
+    `;
   }
 
   private renderPropertyMoneyGrowthCurve(data: any, cur: string): string {

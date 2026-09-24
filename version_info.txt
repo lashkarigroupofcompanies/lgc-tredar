@@ -4,8 +4,8 @@
 #
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(2, 12, 5, 0),
-    prodvers=(2, 12, 5, 0),
+    filevers=(2, 12, 6, 0),
+    prodvers=(2, 12, 6, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -21,12 +21,12 @@ VSVersionInfo(
           [
             StringStruct(u'CompanyName', u'Lashkari Group Corp'),
             StringStruct(u'FileDescription', u'LGC Trader - Autonomous Multi-Agent Trading Desk'),
-            StringStruct(u'FileVersion', u'2.12.5.0'),
+            StringStruct(u'FileVersion', u'2.12.6.0'),
             StringStruct(u'InternalName', u'LGCTrader'),
             StringStruct(u'LegalCopyright', u'Copyright (C) 2026 Lashkari Group. All rights reserved.'),
             StringStruct(u'OriginalFilename', u'LGCTrader.exe'),
             StringStruct(u'ProductName', u'LGC Trader Desktop Terminal'),
-            StringStruct(u'ProductVersion', u'2.12.5.0'),
+            StringStruct(u'ProductVersion', u'2.12.6.0'),
             StringStruct(u'Comments', u'Production Multi-Agent Financial Analysis Platform')
           ]
         )

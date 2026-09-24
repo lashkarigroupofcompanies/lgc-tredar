@@ -64,9 +64,15 @@ class PaperBroker:
         "COMMODITIES": 0.0004     # 4 bps exchange clearing
     }
 
-    def __init__(self, starting_balance: float = 500000.0):
-        self.starting_balance = starting_balance
-        self.balance = starting_balance
+    SUPPORTED_MARKETS = ["INDIAN_STOCKS", "US_STOCKS", "CRYPTO", "COMMODITIES", "FOREX"]
+
+    def __init__(self, starting_balance: float = 500000.0, per_market_capital: float = 100000.0):
+        self.per_market_capital = float(per_market_capital)
+        self.market_starting_cap: Dict[str, float] = {
+            m: self.per_market_capital for m in self.SUPPORTED_MARKETS
+        }
+        self.starting_balance = float(sum(self.market_starting_cap.values())) if starting_balance == 500000.0 else float(starting_balance)
+        self.balance = self.starting_balance
         self.open_positions: Dict[str, Dict[str, Any]] = {}
         self.trade_history: List[Dict[str, Any]] = []
         self._hydrate_from_cloud()
@@ -78,43 +84,111 @@ class PaperBroker:
             cloud_trades = turso_client.get_all_trades()
             if cloud_trades:
                 self.trade_history = cloud_trades
-                total_realized_pnl = sum(float(t.get("realized_pnl", 0.0)) for t in self.trade_history)
+                total_realized_pnl = sum(float(t.get("realized_pnl", t.get("pnl", 0.0))) for t in self.trade_history)
                 self.balance = self.starting_balance + total_realized_pnl
                 logger.info(f"[PaperBroker] Hydrated {len(self.trade_history)} trades from Turso Cloud. Adjusted Balance: ₹{self.balance:,.2f}")
         except Exception as e:
             logger.warning(f"[PaperBroker] Cloud trade hydration deferred: {e}")
 
-    def reset(self, starting_balance: float = 500000.0):
-        """Cleans out open positions and trade history and re-allocates starting capital."""
-        self.balance = float(starting_balance)
-        self.starting_balance = float(starting_balance)
+    def reset(self, starting_balance: float = 500000.0, per_market_capital: float = 100000.0):
+        """Cleans out open positions and trade history and re-allocates starting capital (₹1,00,000 per market)."""
+        self.per_market_capital = float(per_market_capital)
+        self.market_starting_cap = {m: self.per_market_capital for m in self.SUPPORTED_MARKETS}
+        self.starting_balance = float(sum(self.market_starting_cap.values()))
+        self.balance = self.starting_balance
         self.open_positions = {}
         self.trade_history = []
-        logger.info(f"[PaperBroker] Account reset to starting balance of {self.balance:,.2f}")
+        logger.info(f"[PaperBroker] Account reset to ₹1,00,000 per market (Total Starting: ₹{self.starting_balance:,.2f})")
+
+    def get_market_portfolio(self, market: str) -> Dict[str, Any]:
+        """Calculates dedicated ₹1,00,000 portfolio book for an individual market."""
+        m_key = market.upper()
+        start_cap = self.market_starting_cap.get(m_key, self.per_market_capital)
+        
+        m_trades = [t for t in self.trade_history if str(t.get("market", "")).upper() == m_key]
+        m_positions = [p for p in self.open_positions.values() if str(p.get("market", "")).upper() == m_key]
+        
+        realized_pnl = sum(float(t.get("realized_pnl", t.get("pnl", 0.0))) for t in m_trades)
+        unrealized_pnl = sum(float(p.get("unrealized_pnl", 0.0)) for p in m_positions)
+        total_pnl = realized_pnl + unrealized_pnl
+        current_val = start_cap + total_pnl
+        pnl_pct = round((total_pnl / max(1.0, start_cap)) * 100.0, 2)
+        
+        # Approximate margin in use (20% margin requirement or position size)
+        margin_used = sum(float(p.get("entry_price", 0.0)) * float(p.get("remaining_units", 1.0)) * 0.20 for p in m_positions)
+        available_cash = max(0.0, current_val - margin_used)
+        
+        wins = [t for t in m_trades if float(t.get("realized_pnl", t.get("pnl", 0.0))) > 0]
+        losses = [t for t in m_trades if float(t.get("realized_pnl", t.get("pnl", 0.0))) < 0]
+        tot_closed = len(m_trades)
+        win_rate = round((len(wins) / max(1, tot_closed)) * 100.0, 1) if tot_closed > 0 else 0.0
+
+        return {
+            "market": m_key,
+            "starting_capital": round(start_cap, 2),
+            "current_value": round(current_val, 2),
+            "equity": round(current_val, 2),
+            "balance": round(start_cap + realized_pnl, 2),
+            "total_pnl": round(total_pnl, 2),
+            "realized_pnl": round(realized_pnl, 2),
+            "unrealized_pnl": round(unrealized_pnl, 2),
+            "pnl_percent": pnl_pct,
+            "margin_used": round(margin_used, 2),
+            "available_cash": round(available_cash, 2),
+            "open_positions_count": len(m_positions),
+            "total_trades_count": tot_closed,
+            "wins_count": len(wins),
+            "losses_count": len(losses),
+            "win_rate_pct": win_rate
+        }
 
     def get_portfolio_summary(self) -> Dict[str, Any]:
-        """Returns account balance, equity, and position stats."""
-        unrealized_pnl = sum(p.get("unrealized_pnl", 0.0) for p in self.open_positions.values())
-        equity = self.balance + unrealized_pnl
+        """
+        Returns institutional aggregated portfolio metrics across all markets.
+        Guarantees mathematical integrity: Equity = Starting Capital + Total P&L.
+        """
+        total_realized_pnl = sum(float(t.get("realized_pnl", t.get("pnl", 0.0))) for t in self.trade_history)
+        unrealized_pnl = sum(float(p.get("unrealized_pnl", 0.0)) for p in self.open_positions.values())
+        total_pnl = total_realized_pnl + unrealized_pnl
+        
+        total_starting = sum(self.market_starting_cap.values())
+        equity = total_starting + total_pnl
+        cash_balance = total_starting + total_realized_pnl
+        
         total_closed = len(self.trade_history)
-        winning_trades = [t for t in self.trade_history if t.get("realized_pnl", 0.0) > 0]
-        win_rate = round((len(winning_trades) / total_closed * 100.0), 1) if total_closed > 0 else 0.0
-        total_profit = sum(t.get("realized_pnl", 0.0) for t in self.trade_history)
+        winning_trades = [t for t in self.trade_history if float(t.get("realized_pnl", t.get("pnl", 0.0))) > 0]
+        losing_trades = [t for t in self.trade_history if float(t.get("realized_pnl", t.get("pnl", 0.0))) < 0]
+        win_rate = round((len(winning_trades) / max(1, total_closed) * 100.0), 1) if total_closed > 0 else 0.0
+        
+        margin_in_use = sum(float(p.get("entry_price", 0.0)) * float(p.get("remaining_units", 1.0)) * 0.20 for p in self.open_positions.values())
+        available_cash = max(0.0, equity - margin_in_use)
 
         avg_trade_eff = 0.0
         if total_closed > 0:
-            effs = [t.get("execution_quality", {}).get("trade_efficiency_pct", 0.0) for t in self.trade_history]
+            effs = [float(t.get("execution_quality", {}).get("trade_efficiency_pct", 0.0)) for t in self.trade_history]
             avg_trade_eff = round(sum(effs) / total_closed, 1)
 
+        market_portfolios = {m: self.get_market_portfolio(m) for m in self.SUPPORTED_MARKETS}
+
         return {
-            "balance": round(self.balance, 2),
+            "starting_balance": round(total_starting, 2),
+            "starting_capital": round(total_starting, 2),
+            "balance": round(cash_balance, 2),
             "equity": round(equity, 2),
+            "current_capital": round(equity, 2),
+            "total_pnl": round(total_pnl, 2),
+            "total_realized_pnl": round(total_realized_pnl, 2),
             "unrealized_pnl": round(unrealized_pnl, 2),
-            "total_realized_pnl": round(total_profit, 2),
+            "pnl_percent": round((total_pnl / max(1.0, total_starting)) * 100.0, 2),
+            "margin_used": round(margin_in_use, 2),
+            "available_cash": round(available_cash, 2),
             "open_positions_count": len(self.open_positions),
             "total_trades_count": total_closed,
+            "wins_count": len(winning_trades),
+            "losses_count": len(losing_trades),
             "win_rate_pct": win_rate,
-            "avg_trade_efficiency_pct": avg_trade_eff
+            "avg_trade_efficiency_pct": avg_trade_eff,
+            "market_portfolios": market_portfolios
         }
 
     @classmethod
