@@ -234,6 +234,7 @@ export class HackerDeskController {
     this.initLearnAndRememberModal();
     this.initSimpleLogsDrawer();
     this.initVersionChecker();
+    this.initNetworkStatusMonitor();
     this.startStateSync();
   }
 
@@ -293,7 +294,7 @@ export class HackerDeskController {
         <div class="hk-brand-group">
           <div class="hk-pulse-dot"></div>
           <span class="hk-brand-title">LGC QUANTUM</span>
-          <span class="hk-brand-tag" id="hkAppVersionTag" style="cursor:pointer;" title="LGC Trader v2.12.4 - Click to check updates">v2.12.4</span>
+          <span class="hk-brand-tag" id="hkAppVersionTag" style="cursor:pointer;" title="LGC Trader v2.12.6 - Click to check updates">v2.12.6</span>
 
           <!-- MASTER AGENT ARMY ON / OFF BUTTON WITH LIVE STOPWATCH UPTIME TIMER -->
           <button class="hk-master-switch-btn off" id="hkAgentMasterBtn" title="Click to Configure & Launch Autonomous Agents">
@@ -331,10 +332,16 @@ export class HackerDeskController {
         </div>
 
         <div class="hk-header-right">
+          <!-- LIVE INTERNET STATUS INDICATOR -->
+          <div class="hk-net-badge online" id="hkNetStatusBadge" title="Network Connection Status: Online - Required for live price feeds & order execution">
+            <span class="hk-net-dot"></span>
+            <span id="hkNetStatusText">NET: ONLINE</span>
+          </div>
+
           <!-- LIVE VERSION STATUS & UPDATE CHECKER -->
-          <button class="hk-version-badge up-to-date" id="hkVersionCheckBtn" title="Current Engine: v2.12.0. Click to Check for GitHub Updates">
+          <button class="hk-version-badge up-to-date" id="hkVersionCheckBtn" title="Current Engine: v2.12.6. Click to Check for GitHub Updates">
             <span class="hk-version-dot"></span>
-            <span id="hkVersionBadgeText">v2.12.0 • LATEST</span>
+            <span id="hkVersionBadgeText">v2.12.6 • LATEST</span>
           </button>
 
           <div class="hk-zulu-clock" id="hkZuluClock">00:00:00 UTC</div>
@@ -4566,6 +4573,34 @@ export class HackerDeskController {
     }, 15 * 60 * 1000);
   }
 
+  // --- Real-time Internet & Network Connection Monitor ---
+  private initNetworkStatusMonitor(): void {
+    const updateNetStatus = (isOnline: boolean) => {
+      const badge = document.getElementById('hkNetStatusBadge');
+      const text = document.getElementById('hkNetStatusText');
+      if (!badge || !text) return;
+      if (isOnline) {
+        badge.className = 'hk-net-badge online';
+        badge.title = 'Network Connection Status: Online - Live candle feeds, AI scanning & execution active';
+        text.textContent = 'NET: ONLINE';
+      } else {
+        badge.className = 'hk-net-badge offline';
+        badge.title = 'Network Connection Status: Offline! Please connect to internet to enable live price feeds & trading';
+        text.textContent = 'NET: OFFLINE';
+      }
+    };
+
+    window.addEventListener('online', () => updateNetStatus(true));
+    window.addEventListener('offline', () => updateNetStatus(false));
+    // Check initial state
+    updateNetStatus(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+    // Periodic heartbeat verification via light ping
+    setInterval(() => {
+      updateNetStatus(typeof navigator !== 'undefined' ? navigator.onLine : true);
+    }, 10000);
+  }
+
   public async checkAppVersion(showModal = false): Promise<void> {
     const badge = document.getElementById('hkVersionCheckBtn');
     const badgeText = document.getElementById('hkVersionBadgeText');
@@ -4578,7 +4613,7 @@ export class HackerDeskController {
         <div style="padding:30px 10px;text-align:center;color:#94a3b8;font-family:var(--hk-font-mono);">
           <div style="font-size:24px;margin-bottom:10px;">⚡</div>
           <div style="color:#00ff66;font-size:13px;font-weight:700;">CHECKING GITHUB CLOUD RELEASES...</div>
-          <div style="font-size:11px;color:#64748b;margin-top:4px;">Scanning repository paras2l/lgc-tredar for updates</div>
+          <div style="font-size:11px;color:#64748b;margin-top:4px;">Scanning repository lashkarigroupofcompanies/lgc-tredar for updates</div>
         </div>
       `;
     }
@@ -4588,7 +4623,7 @@ export class HackerDeskController {
       if (res.ok) {
         const data = await res.json();
         const hasUpdate = Boolean(data.has_update);
-        const currentVer = data.current_version || '2.12.4';
+        const currentVer = data.current_version || '2.12.6';
         const latestVer = data.latest_version || currentVer;
 
         if (badge && badgeText) {
@@ -4615,8 +4650,8 @@ export class HackerDeskController {
             <div style="font-size:22px;margin-bottom:8px;">⚠️</div>
             <div style="font-size:13px;font-weight:700;">OFFLINE / GITHUB RATE LIMIT</div>
             <div style="font-size:11px;color:#94a3b8;margin-top:6px;line-height:1.5;">
-              Local engine is running smoothly at v2.12.4.<br>
-              Check GitHub directly at <a href="https://github.com/paras2l/lgc-tredar/releases" target="_blank" style="color:#00ff66;">github.com/paras2l/lgc-tredar/releases</a>
+              Local engine is running smoothly at v2.12.6.<br>
+              Check GitHub directly at <a href="https://github.com/lashkarigroupofcompanies/lgc-tredar/releases" target="_blank" style="color:#00ff66;">github.com/lashkarigroupofcompanies/lgc-tredar/releases</a>
             </div>
           </div>
         `;
