@@ -217,6 +217,8 @@ export class HackerDeskController {
   public activeAnalysisDateFilter: string = 'ALL';
   public activeAnalysisMarketFilter: string = 'ALL';
   public updatePollTimer: any = null;
+  public agentStartedAt: number | null = null;
+  public agentUptimeTimer: any = null;
 
   public init(): void {
     document.body.classList.add('hacker-night-mode');
@@ -291,12 +293,16 @@ export class HackerDeskController {
         <div class="hk-brand-group">
           <div class="hk-pulse-dot"></div>
           <span class="hk-brand-title">LGC QUANTUM</span>
-          <span class="hk-brand-tag" id="hkAppVersionTag" style="cursor:pointer;" title="LGC Trader v2.12.0 - Click to check updates">v2.12.0</span>
+          <span class="hk-brand-tag" id="hkAppVersionTag" style="cursor:pointer;" title="LGC Trader v2.12.4 - Click to check updates">v2.12.4</span>
 
-          <!-- MASTER AGENT ARMY ON / OFF BUTTON -->
+          <!-- MASTER AGENT ARMY ON / OFF BUTTON WITH LIVE STOPWATCH UPTIME TIMER -->
           <button class="hk-master-switch-btn off" id="hkAgentMasterBtn" title="Click to Configure & Launch Autonomous Agents">
             <span class="hk-switch-indicator"></span>
             <span id="hkSwitchBtnText">AGENT ARMY: <strong>OFF</strong></span>
+            <span id="hkAgentTimerBadge" class="hk-agent-timer-badge off" title="Agent Live Autonomous Uptime">
+              <span class="hk-timer-clock-icon">⏱️</span>
+              <span id="hkAgentTimerDigits">00:00:00</span>
+            </span>
           </button>
 
           <!-- WILD MODE TOGGLE SWITCH -->
@@ -2086,13 +2092,20 @@ export class HackerDeskController {
         })
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
         this.isAgentArmyRunning = true;
+        if (data.started_at) {
+          this.agentStartedAt = Number(data.started_at) * 1000;
+        } else if (!this.agentStartedAt) {
+          this.agentStartedAt = Date.now();
+        }
         this.updateMasterSwitchUI();
         this.closeWizard();
         this.updateHudOnStart();
       } else {
         console.warn('[HackerDesk] API start-wizard returned non-OK status:', res.status);
         this.isAgentArmyRunning = true;
+        if (!this.agentStartedAt) this.agentStartedAt = Date.now();
         this.updateMasterSwitchUI();
         this.closeWizard();
         this.updateHudOnStart();
@@ -2100,10 +2113,64 @@ export class HackerDeskController {
     } catch (e) {
       console.warn('[HackerDesk] Could not connect to API server, starting local mode:', e);
       this.isAgentArmyRunning = true;
+      if (!this.agentStartedAt) this.agentStartedAt = Date.now();
       this.updateMasterSwitchUI();
       this.closeWizard();
       this.updateHudOnStart();
     }
+  }
+
+  public startAgentUptimeTimer(serverStartedAtSec?: number): void {
+    if (serverStartedAtSec && serverStartedAtSec > 0) {
+      this.agentStartedAt = Number(serverStartedAtSec) * 1000;
+    } else if (!this.agentStartedAt) {
+      this.agentStartedAt = Date.now();
+    }
+
+    const timerBadge = document.getElementById('hkAgentTimerBadge');
+    const timerDigits = document.getElementById('hkAgentTimerDigits');
+    if (timerBadge) {
+      timerBadge.className = 'hk-agent-timer-badge on';
+    }
+
+    const renderTick = () => {
+      if (!this.isAgentArmyRunning) return;
+      const now = Date.now();
+      const elapsedSec = Math.max(0, Math.floor((now - (this.agentStartedAt || now)) / 1000));
+      const hours = Math.floor(elapsedSec / 3600);
+      const minutes = Math.floor((elapsedSec % 3600) / 60);
+      const seconds = elapsedSec % 60;
+      const formatted = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+      if (timerDigits) {
+        timerDigits.textContent = formatted;
+      }
+      // Update browser/window title so the live counter is clearly visible in the Windows taskbar preview even when minimized!
+      document.title = `● [${formatted}] LGC QUANTUM - AGENT ARMY ACTIVE`;
+    };
+
+    renderTick();
+    if (this.agentUptimeTimer) {
+      clearInterval(this.agentUptimeTimer);
+    }
+    this.agentUptimeTimer = window.setInterval(renderTick, 1000);
+  }
+
+  public stopAgentUptimeTimer(): void {
+    if (this.agentUptimeTimer) {
+      clearInterval(this.agentUptimeTimer);
+      this.agentUptimeTimer = null;
+    }
+    this.agentStartedAt = null;
+    const timerBadge = document.getElementById('hkAgentTimerBadge');
+    const timerDigits = document.getElementById('hkAgentTimerDigits');
+    if (timerBadge) {
+      timerBadge.className = 'hk-agent-timer-badge off';
+    }
+    if (timerDigits) {
+      timerDigits.textContent = '00:00:00';
+    }
+    document.title = 'LGC QUANTUM - Tactical Hacker Terminal';
   }
 
   private async haltAgentArmy(): Promise<void> {
@@ -2130,6 +2197,7 @@ export class HackerDeskController {
           badge.className = 'hk-news-badge crit';
           badge.textContent = 'ACTIVE AGENTS';
         }
+        this.startAgentUptimeTimer();
       } else {
         btn.className = 'hk-master-switch-btn off';
         txt.innerHTML = 'AGENT ARMY: <strong>OFF</strong>';
@@ -2137,6 +2205,7 @@ export class HackerDeskController {
           badge.className = 'hk-news-badge info';
           badge.textContent = 'STANDBY';
         }
+        this.stopAgentUptimeTimer();
       }
     }
   }
@@ -4596,9 +4665,19 @@ ${notes}
       const res = await fetch('/api/state');
       if (res.ok) {
         const st = await res.json();
-        if (st.status === 'RUNNING' && !this.isAgentArmyRunning) {
-          this.isAgentArmyRunning = true;
-          this.updateMasterSwitchUI();
+        if (st.status === 'RUNNING') {
+          if (!this.isAgentArmyRunning) {
+            this.isAgentArmyRunning = true;
+            if (st.started_at) {
+              this.agentStartedAt = Number(st.started_at) * 1000;
+            }
+            this.updateMasterSwitchUI();
+          } else if (st.started_at) {
+            const serverMs = Number(st.started_at) * 1000;
+            if (!this.agentStartedAt || Math.abs(this.agentStartedAt - serverMs) > 3000) {
+              this.agentStartedAt = serverMs;
+            }
+          }
         } else if (st.status === 'STOPPED' && this.isAgentArmyRunning) {
           this.isAgentArmyRunning = false;
           this.updateMasterSwitchUI();
@@ -4709,16 +4788,20 @@ ${notes}
     }, 2000);
 
     // Instant resync on app unminimize or focus change
+    const onWakeOrFocus = () => {
+      this.syncStateNow();
+      this.updateDeskLiveFeed();
+      if (this.isAgentArmyRunning) {
+        this.startAgentUptimeTimer();
+      }
+    };
+
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        this.syncStateNow();
-        this.updateDeskLiveFeed();
+        onWakeOrFocus();
       }
     });
 
-    window.addEventListener('focus', () => {
-      this.syncStateNow();
-      this.updateDeskLiveFeed();
-    });
+    window.addEventListener('focus', onWakeOrFocus);
   }
 }

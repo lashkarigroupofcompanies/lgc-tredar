@@ -351,6 +351,7 @@ class MultiChartScreener:
             "all_screened_charts": screened_results,
             "mode": mode,
             "qualified_count": sum(1 for r in screened_results if "ACCEPTABLE" in r["status"] or "SAFE" in r["status"] or "WILD" in r["status"]),
+            "safe_count": sum(1 for r in screened_results if "ACCEPTABLE" in r["status"] or "SAFE" in r["status"] or "WILD" in r["status"]),
             "rejected_count": sum(1 for r in screened_results if r["status"] == "UNPREDICTABLE_REJECTED"),
             "timestamp": pd.Timestamp.now().isoformat()
         }

@@ -63,10 +63,14 @@ class CoreTradingAgent:
         self.execution_agent = ExecutionAgent(starting_balance=100000.0)
         self.ceo_agent = CEOAgent(self.brain)
         self.clone_manager = ShadowCloneManager()
+        self.started_at: Optional[float] = None
         
         # System State
         self.system_state: Dict[str, Any] = {
             "status": "STOPPED",  # RUNNING | PAUSED | STOPPED
+            "started_at": None,
+            "uptime_seconds": 0,
+            "last_session_uptime": 0,
             "active_market": self.selected_market,
             "trading_mode": self.trading_mode,
             "cycle_count": 0,
@@ -147,8 +151,11 @@ class CoreTradingAgent:
     def start(self):
         """Starts the autonomous trading loop"""
         self.is_running = True
+        self.started_at = time.time()
         self.system_state["status"] = "RUNNING"
-        logger.info(f"[CoreAgent] Autonomous trading engine STARTED on {self.selected_market}!")
+        self.system_state["started_at"] = self.started_at
+        self.system_state["uptime_seconds"] = 0
+        logger.info(f"[CoreAgent] Autonomous trading engine STARTED on {self.selected_market} at {time.strftime('%Y-%m-%d %H:%M:%S')}!")
 
     def pause(self):
         """Pauses the trading loop"""
@@ -159,8 +166,13 @@ class CoreTradingAgent:
     def stop(self):
         """Stops the trading loop"""
         self.is_running = False
+        final_uptime = int(time.time() - self.started_at) if self.started_at else 0
         self.system_state["status"] = "STOPPED"
-        logger.info("[CoreAgent] Autonomous trading engine STOPPED.")
+        self.system_state["last_session_uptime"] = final_uptime
+        self.system_state["uptime_seconds"] = 0
+        self.started_at = None
+        self.system_state["started_at"] = None
+        logger.info(f"[CoreAgent] Autonomous trading engine STOPPED after running for {final_uptime}s.")
 
     def configure_and_start(
         self,
@@ -535,6 +547,9 @@ class CoreTradingAgent:
     def get_dashboard_state(self) -> Dict[str, Any]:
         """Provides full snapshot of all agents for the UI dashboard."""
         self._refresh_state_snapshots()
+        if self.is_running and self.started_at:
+            self.system_state["uptime_seconds"] = int(time.time() - self.started_at)
+            self.system_state["started_at"] = self.started_at
         return self.system_state
 
 

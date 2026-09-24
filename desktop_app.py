@@ -16,12 +16,23 @@ import subprocess
 import traceback
 import multiprocessing
 
-# Prevent WebView2 / Chromium from suspending or throttling background timers when minimized
+# Prevent WebView2 / Chromium and Windows OS from suspending or throttling background timers when minimized
 os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (
     "--disable-background-timer-throttling "
     "--disable-backgrounding-occluded-windows "
-    "--disable-renderer-backgrounding"
+    "--disable-renderer-backgrounding "
+    "--disable-features=CalculateNativeWinOcclusion "
+    "--intensive-wake-up-throttling-policy=0 "
+    "--disable-background-media-suspend"
 )
+
+# Instruct Windows Kernel that this process executes continuous background trading computations
+# ES_CONTINUOUS (0x80000000) | ES_SYSTEM_REQUIRED (0x00000001) | ES_AWAYMODE_REQUIRED (0x00000040)
+try:
+    import ctypes
+    ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001 | 0x00000040)
+except Exception:
+    pass
 
 # Critical fix for PyInstaller --windowed / --noconsole mode
 # On Windows windowed apps, sys.stdout, sys.stderr, and sys.stdin are None.

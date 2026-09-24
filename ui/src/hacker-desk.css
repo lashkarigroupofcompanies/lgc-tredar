@@ -988,6 +988,55 @@ body.hacker-night-mode {
   box-shadow: 0 0 25px rgba(0, 255, 102, 0.9);
 }
 
+/* Master Switch Live Uptime Stopwatch Badge */
+.hk-agent-timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.hk-agent-timer-badge.off {
+  background: rgba(255, 51, 102, 0.12);
+  border: 1px solid rgba(255, 51, 102, 0.35);
+  color: #fda4af;
+}
+
+.hk-agent-timer-badge.on {
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(0, 255, 102, 0.6);
+  color: #00ff66;
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.35);
+  text-shadow: 0 0 8px rgba(0, 255, 102, 0.6);
+  animation: hkTimerGlow 2s infinite ease-in-out;
+}
+
+.hk-master-switch-btn.on:hover .hk-agent-timer-badge.on {
+  background: rgba(0, 0, 0, 0.85);
+  color: #00ff66;
+  border-color: #00ff66;
+}
+
+@keyframes hkTimerGlow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(0, 255, 102, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(0, 255, 102, 0.65);
+  }
+}
+
+.hk-timer-clock-icon {
+  font-size: 11px;
+}
+
 /* Wild Mode Toggle Switch */
 .hk-wild-mode-btn {
   display: flex;

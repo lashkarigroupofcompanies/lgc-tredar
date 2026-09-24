@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-09-09 01:03:30",
+  "last_updated": "2026-09-23 19:31:22",
   "total_memories": 9,
   "semantic_memories": [
     {
@@ -659,6 +659,34 @@
       "r_multiple": -1.04,
       "bars_held": 1,
       "exit_reason": "Hard Stop Loss Hit (Capital Protected).",
+      "counterfactual_verdict": null,
+      "what_if_held": null,
+      "alternative_strategy_replay": null
+    },
+    {
+      "trade_id": "TRD_BTC_001",
+      "timestamp": "2026-09-23 19:29:32",
+      "market": "CRYPTO",
+      "symbol": "BTC",
+      "strategy": "LIQUIDATION_WICK_SWEEP",
+      "pnl": 950.0,
+      "r_multiple": 3.85,
+      "bars_held": 1,
+      "exit_reason": "Take Profit target reached at higher high",
+      "counterfactual_verdict": null,
+      "what_if_held": null,
+      "alternative_strategy_replay": null
+    },
+    {
+      "trade_id": "TRD_NVDA_002",
+      "timestamp": "2026-09-23 19:31:22",
+      "market": "US_STOCKS",
+      "symbol": "NVDA",
+      "strategy": "OPENING_RANGE_BREAKOUT",
+      "pnl": 200.0,
+      "r_multiple": 1.0,
+      "bars_held": 1,
+      "exit_reason": "EMERGENCY_KILL: Test Suite Complete",
       "counterfactual_verdict": null,
       "what_if_held": null,
       "alternative_strategy_replay": null

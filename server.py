@@ -315,7 +315,12 @@ def get_update_progress():
 def start_engine():
     core.start()
     cycle_wake_event.set()
-    return JSONResponse(content={"status": "STARTED", "is_running": core.is_running})
+    return JSONResponse(content={
+        "status": "STARTED",
+        "is_running": core.is_running,
+        "started_at": core.started_at,
+        "uptime_seconds": 0
+    })
 
 
 @app.post("/api/start-wizard")
@@ -334,6 +339,8 @@ def start_wizard(req: WizardStartRequest):
     return JSONResponse(content={
         "status": "STARTED",
         "is_running": core.is_running,
+        "started_at": core.started_at,
+        "uptime_seconds": 0,
         "config": {
             "markets": req.markets,
             "trading_style": req.trading_style,
@@ -632,7 +639,11 @@ def pause_engine():
 @app.post("/api/stop")
 def stop_engine():
     core.stop()
-    return JSONResponse(content={"status": "STOPPED", "is_running": core.is_running})
+    return JSONResponse(content={
+        "status": "STOPPED",
+        "is_running": core.is_running,
+        "last_session_uptime": core.system_state.get("last_session_uptime", 0)
+    })
 
 
 @app.post("/api/market")
