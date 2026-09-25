@@ -203,7 +203,7 @@ export class HackerDeskController {
 
   // Analysis Screen State
   public activeAnalysisTab: 'POSITIONS' | 'HISTORY' | 'DEFENSIVE_REJECTIONS' = 'HISTORY';
-  public activeAnalysisMainTab: 'OVERVIEW' | 'EXECUTED_TRADES' | 'LLM_CONFIG' | 'RISK' | 'HEALTH' | 'LEARNING' | 'LOGS' = 'OVERVIEW';
+  public activeAnalysisMainTab: 'OVERVIEW' | 'MISSION_CONTROL' | 'EXECUTED_TRADES' | 'LLM_CONFIG' | 'RISK' | 'HEALTH' | 'LEARNING' | 'LOGS' = 'OVERVIEW';
   public activeGrowthFilterMarket: string = 'TOTAL';
   public livePositionsList: AnalysisPosition[] = [];
   public pastTradesList: AnalysisTrade[] = [];
@@ -2524,6 +2524,8 @@ export class HackerDeskController {
           </div>
         </section>
       `;
+    } else if (this.activeAnalysisMainTab === 'MISSION_CONTROL') {
+      mainContentHtml = this.renderMissionControlSection(data, cur);
     } else if (this.activeAnalysisMainTab === 'EXECUTED_TRADES') {
       mainContentHtml = this.renderExecutedTradesSection(data, cur);
     } else if (this.activeAnalysisMainTab === 'LLM_CONFIG') {
@@ -2543,6 +2545,9 @@ export class HackerDeskController {
       <div class="hk-ana-tabs-bar">
         <button class="hk-ana-tab-btn ${this.activeAnalysisMainTab === 'OVERVIEW' ? 'active' : ''}" data-tab="OVERVIEW">
           <span>📊</span> Overview & Live P&L
+        </button>
+        <button class="hk-ana-tab-btn ${this.activeAnalysisMainTab === 'MISSION_CONTROL' ? 'active' : ''}" data-tab="MISSION_CONTROL" style="${this.activeAnalysisMainTab === 'MISSION_CONTROL' ? '' : 'border-color:#00f2fe;color:#00f2fe;'}">
+          <span>🛰️</span> Mission Control & Radar
         </button>
         <button class="hk-ana-tab-btn ${this.activeAnalysisMainTab === 'EXECUTED_TRADES' ? 'active' : ''}" data-tab="EXECUTED_TRADES" style="${this.activeAnalysisMainTab === 'EXECUTED_TRADES' ? '' : 'border-color:#143820;color:#00ff66;'}">
           <span>🎯</span> Executed Trades Lab (${(data.trade_history || []).length} Executed)
@@ -4250,6 +4255,141 @@ export class HackerDeskController {
                 <span>${rule}</span>
               </div>
             `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // --- Live Agent Mission Control & Candidate Radar Section ---
+  private renderMissionControlSection(data: any, cur: string): string {
+    const mc = data.mission_control || {
+      cycle_count: 0,
+      last_tick_time: '--:--:--',
+      is_running: false,
+      trading_mode: 'CONSERVATIVE_SAFE',
+      active_market: 'INDIAN_STOCKS',
+      total_scanned: 0,
+      agents: [],
+      candidate_radar: []
+    };
+
+    const agents = mc.agents || [];
+    const radar = mc.candidate_radar || [];
+
+    return `
+      <div class="hk-mc-container">
+        <!-- Top Telemetry Banner -->
+        <div class="hk-mc-banner">
+          <div class="hk-mc-banner-left">
+            <div class="hk-pulse-dot" style="${mc.is_running ? '' : 'background:#64748b;box-shadow:none;'}"></div>
+            <div>
+              <div class="hk-mc-banner-title">
+                LIVE AGENT MISSION CONTROL: <span style="color:${mc.is_running ? '#00ff66' : '#94a3b8'};">${mc.is_running ? 'AUTONOMOUS FLEET ACTIVE' : 'ENGINE STANDBY (CLICK START AGENTS)'}</span>
+              </div>
+              <div class="hk-mc-banner-subtitle">
+                Real-time multi-agent execution status, market screening forensics & candidate radar
+              </div>
+            </div>
+          </div>
+          <div class="hk-mc-banner-pills">
+            <div class="hk-mc-pill green">● CYCLE #${mc.cycle_count || 1}</div>
+            <div class="hk-mc-pill">LAST TICK: ${mc.last_tick_time || 'ACTIVE'}</div>
+            <div class="hk-mc-pill">MODE: ${mc.trading_mode}</div>
+            <div class="hk-mc-pill">MARKET: ${mc.active_market}</div>
+          </div>
+        </div>
+
+        <!-- 6-Agent Real-Time Telemetry Grid -->
+        <div class="hk-mc-agent-grid">
+          ${agents.map((a: any) => `
+            <div class="hk-mc-card">
+              <div class="hk-mc-card-top">
+                <span class="hk-mc-card-agent-name">${a.icon} ${a.name}</span>
+                <span class="hk-mc-agent-status ${a.status.toLowerCase()}">${a.status}</span>
+              </div>
+              <div class="hk-mc-card-role">${a.role}</div>
+              <div class="hk-mc-task-box">
+                <span style="color:#00ff66;font-weight:700;">LIVE ACTION:</span> ${a.current_task}
+              </div>
+              <div class="hk-mc-metrics-row">
+                ${Object.entries(a.metrics || {}).map(([k, v]) => `
+                  <div class="hk-mc-metric-item">
+                    <div class="hk-mc-metric-label">${k}</div>
+                    <div class="hk-mc-metric-val">${v}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Real-Time Candidate Radar Table -->
+        <div class="hk-radar-panel">
+          <div class="hk-radar-header">
+            <div class="hk-radar-title">
+              <span>🛰️</span>
+              <span>LIVE CANDIDATE RADAR (Why Setups Trigger or Wait)</span>
+            </div>
+            <div style="font-size:11px;color:#64748b;">
+              Scanned Candidates: <strong style="color:#38bdf8;">${radar.length} Tickers</strong> • Scanned Every 20 Seconds
+            </div>
+          </div>
+          <div class="hk-radar-table-wrap">
+            <table class="hk-radar-table">
+              <thead>
+                <tr>
+                  <th>ASSET / TICKER</th>
+                  <th>MARKET</th>
+                  <th>LIVE PRICE</th>
+                  <th>PREDICTABILITY SCORE</th>
+                  <th>TREND CLARITY</th>
+                  <th>ACTION STATUS</th>
+                  <th>AGENT DECISION FORENSICS (EXACT REASON / WHAT WE WAIT FOR)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${radar.length === 0 ? `
+                  <tr>
+                    <td colspan="7" style="text-align:center;padding:24px;color:#64748b;">
+                      Engine is compiling the candidate universe... Start agents to view live ticks.
+                    </td>
+                  </tr>
+                ` : radar.map((r: any) => {
+                  const scoreColor = r.score >= 70 ? '#00ff66' : (r.score >= 50 ? '#ffaa00' : '#64748b');
+                  return `
+                    <tr>
+                      <td style="font-weight:800;color:#f1f5f9;">
+                        ${r.symbol}
+                      </td>
+                      <td>
+                        <span style="color:#94a3b8;font-size:10px;">${r.market}</span>
+                      </td>
+                      <td style="color:#38bdf8;font-weight:700;">
+                        ${r.price > 0 ? `${cur}${r.price.toLocaleString('en-IN')}` : 'Live Feed'}
+                      </td>
+                      <td>
+                        <span style="color:${scoreColor};font-weight:800;">${r.score}/100</span>
+                        <div class="hk-radar-score-bar-outer">
+                          <div class="hk-radar-score-bar-inner" style="width:${Math.min(100, Math.max(5, r.score))}%;background:${scoreColor};"></div>
+                        </div>
+                      </td>
+                      <td style="font-size:10px;color:#94a3b8;">
+                        ${r.trend}
+                      </td>
+                      <td>
+                        <span class="hk-radar-badge ${r.badge_class}">
+                          ${r.badge}
+                        </span>
+                      </td>
+                      <td style="color:#e2e8f0;font-size:11px;max-width:380px;">
+                        ${r.detail}
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

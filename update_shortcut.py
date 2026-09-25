@@ -8,9 +8,10 @@ desktop_dirs = [
     r'C:\Users\Public\Desktop'
 ]
 
-target_exe = r'D:\lgc trder\dist\LGCTrader.exe'
-work_dir = r'D:\lgc trder'
-icon_path = r'D:\lgc trder\ui\src-tauri\icons\icon.ico'
+repo_root = os.path.dirname(os.path.abspath(__file__))
+target_exe = os.path.join(repo_root, 'dist', 'LGCTrader.exe')
+work_dir = repo_root
+icon_path = os.path.join(repo_root, 'ui', 'src-tauri', 'icons', 'icon.ico')
 
 shell = win32com.client.Dispatch('WScript.Shell')
 

@@ -24,7 +24,7 @@ if %errorlevel% neq 0 (
 
 echo [2/4] Compiling Dark Tactical Web UI...
 cd ui
-call npx vite build
+call npx vite build --config vite.lgc.config.ts
 if %errorlevel% neq 0 (
     echo [WARNING] Vite build had warnings, continuing with existing static assets...
 )
