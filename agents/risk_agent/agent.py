@@ -76,12 +76,15 @@ class RiskManagementAgent:
         clean = str(mode).upper()
         if "DANGEROUS" in clean or "WILD" in clean:
             self.active_mode = "DANGEROUS"
+            self.mode = "DANGEROUS"
             self.base_risk_per_trade_pct = 0.35  # Micro risk for high-frequency evolution lab
         elif "MONEY" in clean or "MAKER" in clean:
             self.active_mode = "MONEY_MAKER"
+            self.mode = "MONEY_MAKER"
             self.base_risk_per_trade_pct = 0.85
         else:
             self.active_mode = "SAFE"
+            self.mode = "SAFE"
             self.base_risk_per_trade_pct = 1.25
         logger.info(f"[RiskAgent] Risk Mode set to: {self.active_mode} (Base Risk: {self.base_risk_per_trade_pct}%)")
 
@@ -415,7 +418,18 @@ class RiskManagementAgent:
         # 6D. Fractal Multi-Timeframe (HTF) Trend Lock & Squeeze Gate
         # -------------------------------------------------------------
         fractal = proposal.get("fractal_alignment") or {}
-        if fractal.get("htf_collision") or fractal.get("recommended_action") == "VETO_TRADE" or fractal.get("veto_trade"):
+        mode_val = str(proposal.get("trading_mode") or getattr(self, "active_mode", getattr(self, "mode", "SAFE"))).upper()
+        is_dangerous = "DANGEROUS" in mode_val or "WILD" in mode_val or proposal.get("is_wild_mode", False)
+        direction = proposal.get("direction", "LONG").upper()
+        htf_collision = False
+
+        if fractal.get("htf_collision") or fractal.get("recommended_action") == "VETO_TRADE":
+            htf_struct = fractal.get("htf_structure", {})
+            htf_trend = htf_struct.get("trend", "")
+            if (direction == "LONG" and htf_trend == "STRONG_BEARISH") or (direction == "SHORT" and htf_trend == "STRONG_BULLISH"):
+                htf_collision = True
+
+        if htf_collision and not is_dangerous:
             veto_msg = fractal.get("veto_reason") or fractal.get("reason", "Counter-trend trade contradicts 4H/1H institutional trend")
             logger.warning(f"[RiskAgent] 🛑 Trade REJECTED by Fractal HTF Alignment: {veto_msg}")
             return {
@@ -425,6 +439,10 @@ class RiskManagementAgent:
                 "section": "SECTION_12_FRACTAL_HTF_ALIGNMENT",
                 "fractal_alignment": fractal
             }
+        elif htf_collision and is_dangerous:
+            assigned_risk_pct = max(0.20, round(assigned_risk_pct * 0.50, 2))
+            tier += "_COUNTER_TREND_LEARNING_SCALP"
+            logger.info(f"[RiskAgent] ⚡ Dangerous Mode: Counter-trend scalp approved with 50% micro sizing for neural training (Risk: {assigned_risk_pct:.2f}%).")
         elif fractal.get("conviction_boost"):
             # HTF perfectly aligned + momentum confluence: boost conviction sizing
             assigned_risk_pct = min(5.0, round(assigned_risk_pct * 1.25, 2))

@@ -380,7 +380,8 @@ class CoreTradingAgent:
             volatility_state="NORMAL",
             adx_value=adx_val,
             chart_pattern_win_rate=pattern_win_rate,
-            news_precedent_win_prob=news_prob
+            news_precedent_win_prob=news_prob,
+            mode=self.trading_mode
         )
         self.board.post_strategy_decision(strategy_decision)
         self.system_state["latest_strategy_decision"] = strategy_decision
@@ -414,7 +415,8 @@ class CoreTradingAgent:
             "triple_historical_index": triple_edge.get("triple_historical_index", 50.0),
             "setup_score": strategy_decision.get("setup_score", 7.0),
             "win_rate_estimate": pattern_win_rate / 100.0,
-            "is_wild_mode": self.trading_mode == "WILD_MODE",
+            "is_wild_mode": self.trading_mode in ["DANGEROUS", "WILD_MODE"],
+            "trading_mode": self.trading_mode,
             "trap_analysis": analytical_report.get("trap_analysis", {}),
             "fractal_alignment": analytical_report.get("fractal_alignment", {}),
             "ttm_squeeze": analytical_report.get("ttm_squeeze", {}),
@@ -466,7 +468,8 @@ class CoreTradingAgent:
             arbitration=arbitration,
             trap_analysis=analytical_report.get("trap_analysis"),
             intermarket_state=macro_telemetry,
-            fractal_alignment=analytical_report.get("fractal_alignment")
+            fractal_alignment=analytical_report.get("fractal_alignment"),
+            trading_mode=self.trading_mode
         )
         self.system_state["latest_ceo_verdict"] = ceo_approval
 

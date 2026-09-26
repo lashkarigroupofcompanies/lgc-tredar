@@ -26,10 +26,15 @@ class TripleConfluenceGate:
         chart_pattern_win_rate: float,
         news_precedent_win_prob: float,
         strategy_consistency_rate: float,
-        strategy_historical_win_rate: float
+        strategy_historical_win_rate: float,
+        mode: str = "SAFE"
     ) -> Dict[str, Any]:
         """
         Calculates the weighted empirical historical confluence index (0 to 100).
+        Adapts execution thresholds based on trading regime:
+        - DANGEROUS: >= 38.0 allows paper micro-scalps to accumulate neural weights
+        - MONEY_MAKER: >= 55.0 allows multi-asset 3-5 daily driver setups
+        - SAFE: >= 70.0 strict institutional sniper
         """
         # Default safety floors
         p_chart = max(10.0, min(100.0, chart_pattern_win_rate))
@@ -39,6 +44,17 @@ class TripleConfluenceGate:
         # Weighted calculation (35% Chart Analogue + 35% News Precedent + 30% Strategy Walk-Forward)
         confluence_index = round((0.35 * p_chart) + (0.35 * p_news) + (0.30 * p_strat), 1)
 
+        mode_upper = str(mode or "SAFE").upper()
+        is_dangerous = "DANGEROUS" in mode_upper or "WILD" in mode_upper
+        is_money_maker = "MONEY" in mode_upper or "MAKER" in mode_upper
+
+        if is_dangerous:
+            threshold_req = 38.0
+        elif is_money_maker:
+            threshold_req = 55.0
+        else:
+            threshold_req = 70.0
+
         if confluence_index >= 70.0:
             tier = "INSTITUTIONAL_A_PLUS"
             verdict = "EXECUTE_HIGH_CONVICTION"
@@ -47,9 +63,14 @@ class TripleConfluenceGate:
         elif confluence_index >= 55.0:
             tier = "STANDARD_CONVICTION"
             verdict = "EXECUTE_STANDARD_SIZE"
-            size_multiplier = 0.65
+            size_multiplier = 0.75 if is_money_maker else 0.65
             guidance = "Positive historical statistical edge. Moderate position sizing recommended."
-        elif confluence_index >= 45.0:
+        elif is_dangerous and confluence_index >= 38.0:
+            tier = "NEURAL_LEARNING_LAB"
+            verdict = "EXECUTE_MICRO_SCALP"
+            size_multiplier = 0.50
+            guidance = "Dangerous Mode: Exploratory micro-scalp approved for high-frequency neural learning."
+        elif confluence_index >= 45.0 and not is_dangerous:
             tier = "MARGINAL_HISTORICAL_EDGE"
             verdict = "WAIT_FOR_BETTER_SETUP"
             size_multiplier = 0.0
@@ -61,12 +82,12 @@ class TripleConfluenceGate:
             guidance = "Past charts and news show this setup has a high failure rate. Stand aside."
 
         logger.info(
-            f"[TripleConfluence] Index: {confluence_index}/100 (Chart: {p_chart}%, News: {p_news}%, Strat: {round(p_strat, 1)}%) -> {verdict}"
+            f"[TripleConfluence] [{mode_upper}] Index: {confluence_index}/100 (Threshold: {threshold_req} | Chart: {p_chart}%, News: {p_news}%, Strat: {round(p_strat, 1)}%) -> {verdict}"
         )
 
         return {
             "triple_historical_index": confluence_index,
-            "threshold_required": 70.0,
+            "threshold_required": threshold_req,
             "tier": tier,
             "verdict": verdict,
             "position_size_multiplier": size_multiplier,

@@ -54,7 +54,8 @@ class StrategyRndAgent:
         is_squeeze: bool = False,
         adx_value: float = 22.0,
         chart_pattern_win_rate: float = 50.0,
-        news_precedent_win_prob: float = 50.0
+        news_precedent_win_prob: float = 50.0,
+        mode: str = "SAFE"
     ) -> Dict[str, Any]:
         """
         Executes end-to-end 18-Section Strategy Selection, Historical Walk-Forward validation,
@@ -82,15 +83,20 @@ class StrategyRndAgent:
         logger.info(f"[StrategyRnd] Market: {market} | Regime: {regime_info['regime']} -> Bias: {regime_info['action_bias']}")
 
         if regime_info["action_bias"] == "STAY_IN_CASH":
-            return {
-                "status": "CASH_PRESERVATION",
-                "recommended_action": "WAIT",
-                "market_regime": regime_info["regime"],
-                "reason": "Market in erratic chop. Section 15 rule: Cash is a profitable position.",
-                "champion_strategy": None,
-                "setup_score_10_pt": {"total_score": 0.0, "verdict": "SKIP_SETUP"},
-                "psychology_guard": {"discipline_summary": "Cash preservation rule active."}
-            }
+            mode_upper = str(mode or "SAFE").upper()
+            is_dangerous = "DANGEROUS" in mode_upper or "WILD" in mode_upper
+            if not is_dangerous:
+                return {
+                    "status": "CASH_PRESERVATION",
+                    "recommended_action": "WAIT",
+                    "market_regime": regime_info["regime"],
+                    "reason": "Market in erratic chop. Section 15 rule: Cash is a profitable position.",
+                    "champion_strategy": None,
+                    "setup_score_10_pt": {"total_score": 0.0, "verdict": "SKIP_SETUP"},
+                    "psychology_guard": {"discipline_summary": "Cash preservation rule active."}
+                }
+            else:
+                logger.info(f"[StrategyRnd] ⚡ DANGEROUS MODE: Bypassing STAY_IN_CASH for paper micro-scalp learning.")
 
         all_strategies = StrategyLibrary.get_all_strategies()
         eligible_names = regime_info["eligible_strategies"]
@@ -159,15 +165,44 @@ class StrategyRndAgent:
         except Exception as e:
             logger.debug(f"Hybrid synthesis error: {e}")
 
+        mode_upper = str(mode or "SAFE").upper()
+        is_dangerous = "DANGEROUS" in mode_upper or "WILD" in mode_upper
+        is_money_maker = "MONEY" in mode_upper or "MAKER" in mode_upper
+
         # Rank candidates by historical edge.
-        # Prioritize candidates with active signals on current bar so valid setups are not missed!
-        active_candidates = [c for c in candidates if c.get("latest_signal") in [1, -1]]
+        # Check active triggers across last 3 bars so recent breakouts are not missed
+        for c in candidates:
+            sig_s = c.get("signals")
+            c["active_signal"] = 0
+            if sig_s is not None and not sig_s.empty:
+                for off in [-1, -2, -3]:
+                    if abs(off) <= len(sig_s) and int(sig_s.iloc[off]) in [1, -1]:
+                        c["active_signal"] = int(sig_s.iloc[off])
+                        break
+
+        active_candidates = [c for c in candidates if c.get("active_signal") in [1, -1]]
         if active_candidates:
             active_candidates.sort(key=lambda x: x["score"], reverse=True)
             champion = active_candidates[0]
+            latest_sig = champion["active_signal"]
         else:
             candidates.sort(key=lambda x: x["score"], reverse=True)
             champion = candidates[0] if candidates else None
+            latest_sig = champion.get("active_signal", 0) if champion else 0
+
+        # In DANGEROUS mode (or high-confluence MONEY_MAKER), if no strategy triggered in last 3 bars,
+        # derive an active micro scalp entry from structural trend & EMA flow
+        if (is_dangerous or is_money_maker) and latest_sig == 0 and champion:
+            ms_up = market_structure.upper()
+            if any(k in ms_up for k in ["UP", "BULL", "MARKUP"]):
+                latest_sig = 1
+            elif any(k in ms_up for k in ["DOWN", "BEAR", "MARKDOWN"]):
+                latest_sig = -1
+            else:
+                ema9 = float(StrategyLibrary._compute_ema(df["close"], 9).iloc[-1])
+                ema21 = float(StrategyLibrary._compute_ema(df["close"], 21).iloc[-1])
+                latest_sig = 1 if ema9 >= ema21 else -1
+            logger.info(f"[StrategyRnd] ⚡ [{mode_upper}] Fast momentum scalp triggered ({market_structure}): Signal={latest_sig}")
 
         if not champion:
             return {
@@ -177,23 +212,28 @@ class StrategyRndAgent:
             }
 
         # 3. Check active trigger on current bar
-        latest_sig = champion["latest_signal"]
         current_price = float(df["close"].iloc[-1])
         atr = float(StrategyLibrary._compute_atr(df, 14).iloc[-1])
         if pd.isna(atr) or atr <= 0:
             atr = current_price * 0.015
 
         action = "WAIT"
+        mult_sl = 1.2 if is_dangerous else 1.8
+        mult_tp = 2.4 if is_dangerous else 3.6
+        # Enforce minimum distance of at least 0.55% to prevent STOP_TOO_TIGHT noise rejection
+        min_sl_dist = max(atr * mult_sl, current_price * 0.0055)
+        min_tp_dist = max(atr * mult_tp, min_sl_dist * 2.0)
+
         if latest_sig == 1:
             action = "BUY"
-            stop_loss = round(current_price - (atr * 1.5), 2)
-            take_profit_1 = round(current_price + (atr * 3.0), 2)
-            take_profit_2 = round(current_price + (atr * 4.5), 2)
+            stop_loss = round(current_price - min_sl_dist, 2)
+            take_profit_1 = round(current_price + min_tp_dist, 2)
+            take_profit_2 = round(current_price + (min_tp_dist * 1.5), 2)
         elif latest_sig == -1:
             action = "SELL"
-            stop_loss = round(current_price + (atr * 1.5), 2)
-            take_profit_1 = round(current_price - (atr * 3.0), 2)
-            take_profit_2 = round(current_price - (atr * 4.5), 2)
+            stop_loss = round(current_price + min_sl_dist, 2)
+            take_profit_1 = round(current_price - min_tp_dist, 2)
+            take_profit_2 = round(current_price - (min_tp_dist * 1.5), 2)
         else:
             stop_loss = 0.0
             take_profit_1 = 0.0
@@ -206,7 +246,7 @@ class StrategyRndAgent:
             (action == "SELL" and any(k in ms_upper for k in ["DOWNTREND", "BEARISH", "MARKDOWN", "TRENDING", "RANGING"]))
         )
         vol_mean = df["volume"].rolling(20).mean().iloc[-1]
-        has_volume = bool(df["volume"].iloc[-1] > vol_mean * 1.1)
+        has_volume = bool(df["volume"].iloc[-1] > vol_mean * 1.0) if is_dangerous else bool(df["volume"].iloc[-1] > vol_mean * 1.1)
 
         strat_wr = champion["win_rate"]
         strat_cons = champion["consistency_pct"]
@@ -217,16 +257,16 @@ class StrategyRndAgent:
                 strat_cons = 75.0
 
         setup_score_result = TradeSetupScorer.score_setup(
-            trend_aligned=trend_aligned,
-            trend_strength="STRONG" if adx_value >= 25 else "MODERATE",
+            trend_aligned=trend_aligned or is_dangerous,
+            trend_strength="STRONG" if (adx_value >= 25 or is_dangerous) else "MODERATE",
             at_key_level=True,
-            level_type="MAJOR" if (champion["profit_factor"] >= 1.5 or champion.get("latest_signal") in [1, -1]) else "MODERATE",
+            level_type="MAJOR" if (champion["profit_factor"] >= 1.5 or is_dangerous or latest_sig in [1, -1]) else "MODERATE",
             has_chart_pattern=True,
-            has_indicator_confluence=strat_wr >= 55.0,
-            has_candlestick_confirm=action != "WAIT",
+            has_indicator_confluence=True if is_dangerous else (strat_wr >= 55.0),
+            has_candlestick_confirm=action != "WAIT" or is_dangerous,
             risk_reward_ratio=2.0,
-            in_killzone_session=in_killzone,
-            has_volume_confirm=has_volume
+            in_killzone_session=in_killzone or is_dangerous,
+            has_volume_confirm=has_volume or is_dangerous
         )
 
         # 5. Section 15: Psychology & Discipline Guard
@@ -234,7 +274,8 @@ class StrategyRndAgent:
             setup_score=setup_score_result["total_score"],
             current_price=current_price,
             suggested_entry=current_price if action != "WAIT" else 0.0,
-            atr=atr
+            atr=atr,
+            mode=mode
         )
 
         # 6. Triple-Historical Confluence Edge Gate (Analytical + News + Strategy)
@@ -242,7 +283,8 @@ class StrategyRndAgent:
             chart_pattern_win_rate=chart_pattern_win_rate,
             news_precedent_win_prob=news_precedent_win_prob,
             strategy_consistency_rate=strat_cons,
-            strategy_historical_win_rate=strat_wr
+            strategy_historical_win_rate=strat_wr,
+            mode=mode
         )
 
         final_action = action

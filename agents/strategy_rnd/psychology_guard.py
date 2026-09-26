@@ -31,22 +31,38 @@ class PsychologyDisciplineGuard:
         current_price: float,
         suggested_entry: float,
         atr: float,
-        has_active_position: bool = False
+        has_active_position: bool = False,
+        mode: str = "SAFE"
     ) -> Dict[str, Any]:
         """
         Runs comprehensive psychological gatekeeping before approving any trade action.
+        Adapts thresholds dynamically based on the operating mode:
+        - DANGEROUS: High-velocity paper learning lab (score >= 3.5, up to 100 paper trades/day)
+        - MONEY_MAKER: Daily driver alpha (score >= 5.0, up to 25 trades/day)
+        - SAFE: Institutional sniper (score >= 7.0, capital preservation)
         """
         reasons = []
         is_blocked = False
 
-        # 1. A+ Setup Filter (Section 16 & 15)
-        if setup_score < 7.0:
-            reasons.append(f"Setup score ({setup_score}/10) below institutional A+ threshold (7.0). Sitting in Cash.")
+        mode_upper = str(mode or "SAFE").upper()
+        if "DANGEROUS" in mode_upper or "WILD" in mode_upper:
+            min_score = 3.5
+            max_daily = 100
+        elif "MONEY" in mode_upper or "MAKER" in mode_upper:
+            min_score = 5.0
+            max_daily = 25
+        else:
+            min_score = 7.0
+            max_daily = self.max_trades_per_day
+
+        # 1. Setup Filter
+        if setup_score < min_score:
+            reasons.append(f"Setup score ({setup_score}/10) below {mode_upper} threshold ({min_score}). Sitting in Cash.")
             is_blocked = True
 
         # 2. Overtrading Guard
-        if self.daily_trade_count >= self.max_trades_per_day:
-            reasons.append(f"Daily trade limit ({self.max_trades_per_day}) reached. Preserving psychological clarity.")
+        if self.daily_trade_count >= max_daily:
+            reasons.append(f"Daily trade limit ({max_daily}) reached for {mode_upper}. Preserving psychological clarity.")
             is_blocked = True
 
         # 3. Revenge Trading Circuit Breaker

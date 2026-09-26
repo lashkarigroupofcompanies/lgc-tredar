@@ -287,12 +287,15 @@ class CEOAgent:
         arbitration: Dict[str, Any],
         trap_analysis: Optional[Dict[str, Any]] = None,
         intermarket_state: Optional[Dict[str, Any]] = None,
-        fractal_alignment: Optional[Dict[str, Any]] = None
+        fractal_alignment: Optional[Dict[str, Any]] = None,
+        trading_mode: str = "SAFE"
     ) -> Dict[str, Any]:
         """
         Final authorization gate before any order can be dispatched to the broker or clone.
         The CEO signs off with supreme authority.
         """
+        is_dangerous = "DANGEROUS" in str(trading_mode or getattr(self, "trading_mode", "SAFE")).upper()
+
         # 1. Check User Override
         if self.user_override_active:
             self.total_vetoes_issued += 1
@@ -304,7 +307,7 @@ class CEOAgent:
             }
 
         # 1B. Check Institutional Trap Detection (Depth 2/3)
-        if trap_analysis and trap_analysis.get("recommended_action") == "VETO_TRADE":
+        if trap_analysis and trap_analysis.get("recommended_action") == "VETO_TRADE" and not is_dangerous:
             self.total_vetoes_issued += 1
             return {
                 "ceo_decision": "VETOED",
@@ -314,7 +317,7 @@ class CEOAgent:
             }
 
         # 1C. Check Macro Volatility Storm
-        if intermarket_state and intermarket_state.get("macro_regime") == "MACRO_VOLATILITY_STORM":
+        if intermarket_state and intermarket_state.get("macro_regime") == "MACRO_VOLATILITY_STORM" and not is_dangerous:
             self.total_vetoes_issued += 1
             return {
                 "ceo_decision": "VETOED",
@@ -324,7 +327,16 @@ class CEOAgent:
             }
 
         # 1D. Check Fractal HTF Trend Lock Veto
-        if fractal_alignment and (fractal_alignment.get("htf_collision") or fractal_alignment.get("recommended_action") == "VETO_TRADE" or fractal_alignment.get("veto_trade")):
+        # Verify if proposed trade direction actually collides with HTF trend
+        htf_collision = False
+        if fractal_alignment and (fractal_alignment.get("htf_collision") or fractal_alignment.get("recommended_action") == "VETO_TRADE"):
+            htf_struct = fractal_alignment.get("htf_structure", {})
+            htf_trend = htf_struct.get("trend", "")
+            # Only veto if the actual proposed trade direction collides with HTF
+            if (direction == "LONG" and htf_trend == "STRONG_BEARISH") or (direction == "SHORT" and htf_trend == "STRONG_BULLISH"):
+                htf_collision = True
+
+        if htf_collision and not is_dangerous:
             self.total_vetoes_issued += 1
             veto_msg = fractal_alignment.get("veto_reason") or fractal_alignment.get("reason", "Counter-trend trade contradicts 4H/1H institutional trend")
             return {
