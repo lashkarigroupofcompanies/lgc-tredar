@@ -314,10 +314,11 @@ export class HackerDeskController {
             </span>
           </button>
 
-          <!-- WILD MODE TOGGLE SWITCH -->
-          <button class="hk-wild-mode-btn safe" id="hkWildModeBtn" title="Toggle Conservative Safe vs High-Alpha Wild Mode">
+          <!-- ACTIVE EXECUTION REGIME INDICATOR & SWITCHER -->
+          <button class="hk-wild-mode-btn safe" id="hkWildModeBtn" title="Current Engine Execution Regime (Click to Switch Execution Mode)">
             <span id="hkWildIcon">🛡️</span>
             <span id="hkWildBtnText">MODE: <strong>SAFE</strong></span>
+            <span style="font-size:9px;opacity:0.7;margin-left:4px;">▼</span>
           </button>
 
           <!-- ANALYSIS & PORTFOLIO BUTTON -->
@@ -953,6 +954,87 @@ export class HackerDeskController {
           </div>
           <div id="hkUpdateModalBody" style="padding:16px 0;">
             <!-- Populated dynamically by checkAppVersion() -->
+          </div>
+        </div>
+      </div>
+
+      <!-- EXECUTION REGIME SWITCHER MODAL -->
+      <div id="hk-mode-switcher-modal" class="hk-modal-overlay">
+        <div class="hk-confirm-box" style="width:620px;max-width:96vw;text-align:left;align-items:stretch;">
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #14281a;padding-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:24px;">⚙️</span>
+              <div>
+                <div style="font-family:var(--hk-font-mono);font-size:14px;font-weight:900;color:#00ff66;letter-spacing:0.5px;">
+                  CURRENT ENGINE EXECUTION REGIME
+                </div>
+                <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+                  This controls the live engine speed, scan timeframes, risk limits, and setup filters.
+                </div>
+              </div>
+            </div>
+            <button class="hk-modal-exit-btn" id="hkModeSwitcherExitBtn">✖</button>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+            <!-- SAFE MODE CARD -->
+            <div class="hk-regime-card" id="hkRegimeOption_SAFE" style="padding:14px;border-radius:8px;border:1px solid #14281a;background:#060f18;cursor:pointer;transition:all 0.2s;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <span style="font-size:26px;">🛡️</span>
+                  <div>
+                    <div style="font-family:var(--hk-font-mono);font-size:13px;font-weight:900;color:#f0fdf4;">
+                      SAFE MODE (Institutional Sniper)
+                    </div>
+                    <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+                      High Confluence (Score ≥ 75 pts) • 15m/1H Steady Trends • ~70% Win Target • 1 trade / 3–5 hrs • 1.25% Max Risk
+                    </div>
+                  </div>
+                </div>
+                <span class="hk-regime-status-badge" id="hkRegimeStatus_SAFE" style="font-family:var(--hk-font-mono);font-size:10px;padding:4px 8px;border-radius:4px;font-weight:800;white-space:nowrap;"></span>
+              </div>
+            </div>
+
+            <!-- MONEY MAKER CARD -->
+            <div class="hk-regime-card" id="hkRegimeOption_MONEY_MAKER" style="padding:14px;border-radius:8px;border:1px solid #14281a;background:#060f18;cursor:pointer;transition:all 0.2s;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <span style="font-size:26px;">💰</span>
+                  <div>
+                    <div style="font-family:var(--hk-font-mono);font-size:13px;font-weight:900;color:#f0fdf4;">
+                      MONEY MAKER (Daily Driver Alpha)
+                    </div>
+                    <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+                      Multi-Asset Scanning (Score ≥ 60 pts) • 5m/15m Intraday • Top 3–5 Setups • 3–6 trades / 5–6 hrs • 0.85% Dynamic Risk
+                    </div>
+                  </div>
+                </div>
+                <span class="hk-regime-status-badge" id="hkRegimeStatus_MONEY_MAKER" style="font-family:var(--hk-font-mono);font-size:10px;padding:4px 8px;border-radius:4px;font-weight:800;white-space:nowrap;"></span>
+              </div>
+            </div>
+
+            <!-- DANGEROUS MODE CARD -->
+            <div class="hk-regime-card" id="hkRegimeOption_DANGEROUS" style="padding:14px;border-radius:8px;border:1px solid #14281a;background:#060f18;cursor:pointer;transition:all 0.2s;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <span style="font-size:26px;">⚡</span>
+                  <div>
+                    <div style="font-family:var(--hk-font-mono);font-size:13px;font-weight:900;color:#f0fdf4;">
+                      DANGEROUS MODE (Neural Evolution Lab)
+                    </div>
+                    <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+                      Ultra-Fast Scalping (Score ≥ 42 pts) • 1m/5m High Frequency • Micro Risk (0.35%) • 10–20 trades/hr • Rapid Neural Brain Learning
+                    </div>
+                  </div>
+                </div>
+                <span class="hk-regime-status-badge" id="hkRegimeStatus_DANGEROUS" style="font-family:var(--hk-font-mono);font-size:10px;padding:4px 8px;border-radius:4px;font-weight:800;white-space:nowrap;"></span>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;padding:10px 14px;border-radius:6px;background:rgba(0,242,254,0.06);border:1px solid rgba(0,242,254,0.2);display:flex;align-items:center;gap:8px;font-size:11px;color:#94a3b8;font-family:var(--hk-font-mono);">
+            <span>🧠</span>
+            <span>All modes share the <strong>Same Brain</strong>: Lessons & mistakes captured in Dangerous Mode immediately shield Safe and Money Maker modes!</span>
           </div>
         </div>
       </div>
@@ -1896,9 +1978,19 @@ export class HackerDeskController {
       }
     });
 
-    // Wild Mode Button Click
+    // Execution Mode Regime Button Click -> Opens Dedicated Selector Modal
     wildBtn?.addEventListener('click', () => {
-      this.toggleWildMode();
+      this.openModeSwitcherModal();
+    });
+
+    document.getElementById('hkModeSwitcherExitBtn')?.addEventListener('click', () => {
+      this.closeModeSwitcherModal();
+    });
+
+    (['SAFE', 'MONEY_MAKER', 'DANGEROUS'] as const).forEach(m => {
+      document.getElementById(`hkRegimeOption_${m}`)?.addEventListener('click', () => {
+        this.selectExecutionMode(m);
+      });
     });
 
     closeBtn?.addEventListener('click', () => this.closeWizard());
@@ -1960,17 +2052,46 @@ export class HackerDeskController {
     }
   }
 
-  private async toggleWildMode(): Promise<void> {
-    if (this.tradingMode === 'SAFE') {
-      this.tradingMode = 'MONEY_MAKER';
-    } else if (this.tradingMode === 'MONEY_MAKER') {
-      this.tradingMode = 'DANGEROUS';
-    } else {
-      this.tradingMode = 'SAFE';
-    }
+  private openModeSwitcherModal(): void {
+    const modal = document.getElementById('hk-mode-switcher-modal');
+    if (!modal) return;
+    this.refreshModeSwitcherUI();
+    modal.classList.add('open');
+  }
 
+  private closeModeSwitcherModal(): void {
+    const modal = document.getElementById('hk-mode-switcher-modal');
+    if (!modal) return;
+    modal.classList.remove('open');
+  }
+
+  private refreshModeSwitcherUI(): void {
+    (['SAFE', 'MONEY_MAKER', 'DANGEROUS'] as const).forEach(m => {
+      const card = document.getElementById(`hkRegimeOption_${m}`);
+      const badge = document.getElementById(`hkRegimeStatus_${m}`);
+      const isActive = (this.tradingMode === m);
+      if (card) {
+        card.style.borderColor = isActive ? '#00ff66' : '#14281a';
+        card.style.background = isActive ? 'linear-gradient(135deg, rgba(0,255,102,0.14), #060f18)' : '#060f18';
+      }
+      if (badge) {
+        if (isActive) {
+          badge.style.background = '#00ff66';
+          badge.style.color = '#000000';
+          badge.textContent = '🟢 ACTIVE ON RUNNING ENGINE';
+        } else {
+          badge.style.background = '#14281a';
+          badge.style.color = '#94a3b8';
+          badge.textContent = '⚡ CLICK TO ACTIVATE';
+        }
+      }
+    });
+  }
+
+  private async selectExecutionMode(mode: 'SAFE' | 'MONEY_MAKER' | 'DANGEROUS'): Promise<void> {
+    this.tradingMode = mode;
     this.applyTradingModeUI(this.tradingMode);
-
+    this.refreshModeSwitcherUI();
     try {
       await fetch('/api/trading-mode', {
         method: 'POST',
@@ -1980,6 +2101,9 @@ export class HackerDeskController {
     } catch (e) {
       console.warn('[HackerDesk] API trading-mode sync error:', e);
     }
+    setTimeout(() => {
+      this.closeModeSwitcherModal();
+    }, 200);
   }
 
   private updateHudOnWildMode(isWild: boolean): void {

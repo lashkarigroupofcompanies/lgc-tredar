@@ -48,8 +48,7 @@ class CoreTradingAgent:
         self.board = SharedAgentBoard()
         self.calc = OmniCalculator(owner="CoreTradingAgent")
         self.is_running = False
-        self.selected_market = "CRYPTO"  # CRYPTO | INDIAN_STOCKS | US_STOCKS
-        self.trading_mode = "CONSERVATIVE_SAFE"  # CONSERVATIVE_SAFE | WILD_MODE
+        self.trading_mode = "SAFE"  # SAFE | MONEY_MAKER | DANGEROUS
         
         # Initialize Subsystem Agents connected to Shared Board
         logger.info("[CoreAgent] Bootstrapping Multi-Agent Quant Engine...")
@@ -269,6 +268,8 @@ class CoreTradingAgent:
         self.system_state["execution_mode"] = mode
         self.system_state["currency"] = currency
         self.system_state["allocation_mode"] = allocation_mode
+        if trading_style:
+            self.set_trading_mode(trading_style)
 
         # Institutional Multi-Market Allocation: Each market receives dedicated ₹1,00,000 capital
         standard_markets = ["INDIAN_STOCKS", "US_STOCKS", "CRYPTO", "COMMODITIES", "FOREX"]
