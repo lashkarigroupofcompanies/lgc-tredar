@@ -148,6 +148,7 @@ class TursoClient:
                 pnl REAL,
                 pnl_percent REAL,
                 strategy TEXT,
+                trading_mode TEXT,
                 exit_reason TEXT,
                 confidence REAL,
                 time TEXT,
@@ -197,6 +198,12 @@ class TursoClient:
         for q in queries:
             res = self.execute(q.strip())
             results.append(res)
+        
+        try:
+            self.execute("ALTER TABLE trades ADD COLUMN trading_mode TEXT;")
+        except Exception:
+            pass
+
         logger.info("[TursoSync] Database tables successfully verified & initialized on Turso cloud!")
         return {"status": "INITIALIZED", "results": results}
 
@@ -204,23 +211,26 @@ class TursoClient:
         """Inserts or updates an executed trade into Turso."""
         sql = """
         INSERT OR REPLACE INTO trades 
-        (id, symbol, market, side, entry_price, exit_price, quantity, pnl, pnl_percent, strategy, exit_reason, confidence, time)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        (id, symbol, market, side, entry_price, exit_price, quantity, pnl, pnl_percent, strategy, trading_mode, exit_reason, confidence, time)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
+        strat = str(t.get("strategy_name") or t.get("strategy") or "Dynamic Quant Alpha")
+        tm = str(t.get("trading_mode") or t.get("mode") or ("DANGEROUS" if any(k in strat.upper() for k in ["FAST", "SCALP", "MICRO", "VOLATILITY"]) else "SAFE"))
         args = [
             str(t.get("trade_id") or t.get("id") or f"TRD-{int(datetime.now().timestamp())}"),
             str(t.get("symbol", "UNKNOWN")),
             str(t.get("market", "GLOBAL")),
-            str(t.get("side", "BUY")),
+            str(t.get("side", t.get("direction", "BUY"))),
             float(t.get("entry_price") or t.get("entry") or 0.0),
             float(t.get("exit_price") or t.get("exit") or 0.0),
-            float(t.get("quantity") or t.get("size") or 1.0),
-            float(t.get("pnl") or 0.0),
+            float(t.get("quantity") or t.get("size") or t.get("shares") or 1.0),
+            float(t.get("pnl") or t.get("realized_pnl") or 0.0),
             float(t.get("pnl_percent") or 0.0),
-            str(t.get("strategy", "Dynamic Quant Alpha")),
+            strat,
+            tm,
             str(t.get("exit_reason", "TP1 / Runner Exit")),
             float(t.get("confidence") or 0.85),
-            str(t.get("time") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            str(t.get("time") or t.get("exit_time") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         ]
         return self.execute(sql, args)
 
@@ -245,7 +255,7 @@ class TursoClient:
 
     def get_all_trades(self) -> List[Dict[str, Any]]:
         """Retrieves all historical trades from Turso Cloud Database."""
-        sql = "SELECT id, symbol, market, side, entry_price, exit_price, quantity, pnl, pnl_percent, strategy, exit_reason, confidence, time, synced_at FROM trades ORDER BY synced_at ASC;"
+        sql = "SELECT id, symbol, market, side, entry_price, exit_price, quantity, pnl, pnl_percent, strategy, trading_mode, exit_reason, confidence, time, synced_at FROM trades ORDER BY synced_at ASC;"
         res = self.execute(sql)
         trades = []
         try:
@@ -263,12 +273,25 @@ class TursoClient:
                     exit_val = float(row_dict.get("exit_price") or 0.0)
                     qty_val = float(row_dict.get("quantity") or 1.0)
                     t_time = str(row_dict.get("time") or row_dict.get("synced_at") or "")
+                    strat_name = str(row_dict.get("strategy") or "Dynamic Quant Alpha")
                     
+                    raw_mode = row_dict.get("trading_mode")
+                    if not raw_mode or str(raw_mode).strip() == "" or str(raw_mode).upper() == "NONE":
+                        if any(k in strat_name.upper() for k in ["FAST", "SCALP", "MICRO", "VOLATILITY", "MOMENTUM"]):
+                            mode_val = "DANGEROUS"
+                        elif str(row_dict.get("market", "")).upper() == "CRYPTO":
+                            mode_val = "DANGEROUS"
+                        else:
+                            mode_val = "SAFE"
+                    else:
+                        mode_val = str(raw_mode).upper()
+
                     trades.append({
                         "trade_id": str(row_dict.get("id")),
                         "id": str(row_dict.get("id")),
                         "symbol": str(row_dict.get("symbol") or "NIFTY 50"),
                         "market": str(row_dict.get("market") or "CRYPTO"),
+                        "trading_mode": mode_val,
                         "side": str(row_dict.get("side") or "BUY"),
                         "direction": str(row_dict.get("side") or "BUY"),
                         "entry_price": entry_val,
@@ -278,8 +301,8 @@ class TursoClient:
                         "realized_pnl": pnl_val,
                         "pnl": pnl_val,
                         "pnl_percent": float(row_dict.get("pnl_percent") or 0.0),
-                        "strategy": str(row_dict.get("strategy") or "Dynamic Quant Alpha"),
-                        "strategy_name": str(row_dict.get("strategy") or "Dynamic Quant Alpha"),
+                        "strategy": strat_name,
+                        "strategy_name": strat_name,
                         "exit_reason": str(row_dict.get("exit_reason") or "TP/SL Exit"),
                         "confidence": float(row_dict.get("confidence") or 0.85),
                         "entry_time": t_time,

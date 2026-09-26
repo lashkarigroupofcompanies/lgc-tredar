@@ -87,26 +87,11 @@ const DEFAULT_PERIODIC_INTERVAL_MS = 10 * 60_000;
  * tests).
  */
 export function installStaleBundleCheck(options: StaleBundleCheckOptions = {}): () => void {
-  const currentHash = options.currentHash ?? (typeof __BUILD_HASH__ !== 'undefined' ? __BUILD_HASH__ : 'dev');
-  // Arrow-function wrapper instead of fetch.bind(globalThis) (banned per
-  // AGENTS.md §Critical Conventions). Same effect — preserves the global
-  // `this` for fetch — without the brittle .bind() form.
-  const fetchImpl: typeof globalThis.fetch =
-    options.fetch ?? ((...args) => globalThis.fetch(...args));
-  const eventTarget = options.eventTarget ?? window;
-  const documentTarget = options.documentTarget ?? (typeof document !== 'undefined' ? document : undefined);
-  const setIntervalImpl = options.setInterval ?? ((cb: () => void, ms: number) => globalThis.setInterval(cb, ms));
-  const reload = options.reload ?? (() => window.location.reload());
-  const now = options.now ?? Date.now;
-  const minIntervalMs = options.minIntervalMs ?? DEFAULT_MIN_INTERVAL_MS;
-  const periodicIntervalMs = options.periodicIntervalMs ?? DEFAULT_PERIODIC_INTERVAL_MS;
-
-  // 'dev' marker means we're running a local build that didn't get a real
-  // SHA injected. Skip the check entirely in that case — comparing 'dev'
-  // against any deployed SHA would force-reload every dev tab on focus.
-  if (currentHash === 'dev') {
-    return () => {};
-  }
+  // CRITICAL: Disable stale bundle check for local desktop quant terminal.
+  // In WebView2 / Chromium desktop windows, visibilitychange & focus fire on minimize/restore.
+  // Reloading the page resets the terminal, wipes form inputs (like API keys), and disorients the user.
+  return () => {};
+}
 
   let lastCheckedAt = 0;
   let inflight = false;

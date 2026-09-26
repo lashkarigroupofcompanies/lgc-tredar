@@ -484,7 +484,9 @@ class PaperBroker:
                 "quantity": closed_record.get("initial_size"),
                 "pnl": closed_record.get("realized_pnl"),
                 "pnl_percent": closed_record.get("pnl_percent", 0.0),
-                "strategy": closed_record.get("strategy", "Dynamic Quant Alpha"),
+                "strategy": closed_record.get("strategy_name", "Dynamic Quant Alpha"),
+                "strategy_name": closed_record.get("strategy_name", "Dynamic Quant Alpha"),
+                "trading_mode": closed_record.get("trading_mode", "SAFE"),
                 "exit_reason": closed_record.get("exit_reason"),
                 "confidence": 0.85,
                 "time": closed_record.get("timestamp_close")

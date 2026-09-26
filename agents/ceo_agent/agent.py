@@ -145,10 +145,13 @@ class CEOAgent:
         if evolution_warnings:
             for w in evolution_warnings:
                 w_msg = w.get("message") or w.get("type", "EVOLUTION_MEMORY_WARNING")
+                w_sev = str(w.get("severity", "MEDIUM")).upper()
                 conflicts.append(f"Evolution Memory Warning: {w_msg}")
-                constraint_warning = True
-                if not matching_constraint:
-                    matching_constraint = w_msg
+                # Strictly enforce repeat mistake guards across all modes (Shared Brain)
+                if w_sev in ["CRITICAL", "HIGH"] or "SHARED_BRAIN" in str(w.get("type", "")) or "REPEAT_RISK" in str(w.get("type", "")):
+                    constraint_warning = True
+                    if not matching_constraint:
+                        matching_constraint = w_msg
 
         # 0. Institutional Trap Override
         if trap_detected:
@@ -365,7 +368,7 @@ class CEOAgent:
 
         # 3. Check Strategy Recommendation
         strat_action = strategy_decision.get("recommended_action", strategy_decision.get("action", "WAIT"))
-        if strat_action not in ["EXECUTE", "BUY", "SELL"]:
+        if strat_action not in ["EXECUTE", "BUY", "SELL", "ENTER_LONG", "ENTER_SHORT"]:
             return {
                 "ceo_decision": "STANDBY",
                 "reason": f"Strategy indicates '{strat_action}'. Awaiting institutional high-conviction trigger.",

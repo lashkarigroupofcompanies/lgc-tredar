@@ -273,6 +273,7 @@ class RiskManagementAgent:
         win_prob = float(proposal.get("win_rate_estimate", 0.50))
         df_bars = candles_df if candles_df is not None else pd.DataFrame()
 
+        tf_style = "SCALPING" if (proposal.get("is_wild_mode") or proposal.get("trading_mode") in ["DANGEROUS", "WILD_MODE"]) else "INTRADAY"
         geo_audit = StopTargetValidator.audit_trade_geometry(
             entry_price=entry_price,
             stop_loss=stop_loss,
@@ -280,7 +281,7 @@ class RiskManagementAgent:
             take_profit_2=tp2,
             direction=direction,
             df=df_bars,
-            timeframe_style="INTRADAY",
+            timeframe_style=tf_style,
             win_rate_estimate=win_prob
         )
 
@@ -379,12 +380,27 @@ class RiskManagementAgent:
             )
 
         # -------------------------------------------------------------
-        # 6. Evolution Memory Warning Throttle (Section 11)
+        # 6. Evolution Memory Warning Throttle & Repeat Mistake Shield (Section 11)
         # -------------------------------------------------------------
         if evolution_warnings and len(evolution_warnings) > 0:
-            logger.warning(f"[RiskAgent] Evolution memory flags detected ({len(evolution_warnings)}). Throttling size by 50%.")
-            assigned_risk_pct = max(0.25, round(assigned_risk_pct * 0.50, 2))
-            tier += "_THROTTLED_BY_MEMORY"
+            has_repeat_mistake = any(
+                w.get("severity") == "CRITICAL" or "SHARED_BRAIN" in str(w.get("type", "")) or "REPEAT_RISK" in str(w.get("type", ""))
+                for w in evolution_warnings
+            )
+            if has_repeat_mistake:
+                crit_w = next(w for w in evolution_warnings if w.get("severity") == "CRITICAL" or "SHARED_BRAIN" in str(w.get("type", "")) or "REPEAT_RISK" in str(w.get("type", "")))
+                logger.warning(f"[RiskAgent] 🛑 REPEAT MISTAKE SHIELD: {crit_w.get('message')}")
+                return {
+                    "decision": "REJECTED",
+                    "risk_tier": "BLOCKED",
+                    "reason": f"REPEAT_MISTAKE_PREVENTION: {crit_w.get('message')}",
+                    "section": "SECTION_11_SHARED_BRAIN_EVOLUTION",
+                    "evolution_warning": crit_w
+                }
+            else:
+                logger.warning(f"[RiskAgent] Evolution memory flags detected ({len(evolution_warnings)}). Throttling size by 50%.")
+                assigned_risk_pct = max(0.25, round(assigned_risk_pct * 0.50, 2))
+                tier += "_THROTTLED_BY_MEMORY"
 
         # -------------------------------------------------------------
         # 6B. Institutional Trap & Liquidity Sweep Gate (Depth 2/3)

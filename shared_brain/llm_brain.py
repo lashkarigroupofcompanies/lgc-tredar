@@ -36,7 +36,11 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LLMBrain")
 
-CONFIG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "llm_config.json"))
+LOCAL_CONFIG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "llm_config.json"))
+APP_DATA_DIR = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "LGCTrader")
+os.makedirs(APP_DATA_DIR, exist_ok=True)
+PERSISTENT_CONFIG_FILE = os.path.join(APP_DATA_DIR, "llm_config.json")
+CONFIG_FILE = PERSISTENT_CONFIG_FILE
 
 # Comprehensive Provider Catalog with default endpoints and latest flagship models
 PROVIDERS_CATALOG: Dict[str, Dict[str, Any]] = {
@@ -184,18 +188,19 @@ class LLMBrain:
 
     def _load_config(self):
         """Loads saved LLM configuration from disk or defaults."""
-        if os.path.exists(CONFIG_FILE):
+        target_file = PERSISTENT_CONFIG_FILE if os.path.exists(PERSISTENT_CONFIG_FILE) else LOCAL_CONFIG_FILE
+        if os.path.exists(target_file):
             try:
-                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                with open(target_file, "r", encoding="utf-8") as f:
                     cfg = json.load(f)
                     self.provider = cfg.get("provider", "NVIDIA").upper()
                     self.api_key = cfg.get("api_key", self.api_key)
                     self.model = cfg.get("model", self.model)
                     self.base_url = cfg.get("base_url", self.base_url)
-                    logger.info(f"[LLMBrain] Loaded config: Provider={self.provider}, Model={self.model}")
+                    logger.info(f"[LLMBrain] Loaded config from {target_file}: Provider={self.provider}, Model={self.model}")
                     return
             except Exception as e:
-                logger.warning(f"[LLMBrain] Error reading config file: {e}")
+                logger.warning(f"[LLMBrain] Error reading config file {target_file}: {e}")
 
         # Fallback to environment variables
         env_key = os.getenv("LLM_API_KEY") or os.getenv("NVIDIA_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
@@ -245,12 +250,15 @@ class LLMBrain:
             "updated_at": os.popen("date").read().strip() if os.name != "nt" else ""
         }
 
-        try:
-            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(cfg_data, f, indent=2)
-            logger.info(f"[LLMBrain] Config successfully persisted: {self.provider} ({self.model})")
-        except Exception as e:
-            logger.error(f"[LLMBrain] Failed to save config: {e}")
+        # Save to both persistent LocalAppData directory and local repository file
+        for fpath in [PERSISTENT_CONFIG_FILE, LOCAL_CONFIG_FILE]:
+            try:
+                os.makedirs(os.path.dirname(fpath), exist_ok=True)
+                with open(fpath, "w", encoding="utf-8") as f:
+                    json.dump(cfg_data, f, indent=2)
+                logger.info(f"[LLMBrain] Config successfully persisted to {fpath}: {self.provider} ({self.model})")
+            except Exception as e:
+                logger.warning(f"[LLMBrain] Could not save config to {fpath}: {e}")
 
         return {
             "status": "CONFIG_SAVED",

@@ -349,6 +349,27 @@ class MultiChartScreener:
                     "rejection_reason": str(e)
                 })
 
+        # Check active mistake guards from Shared Brain to rotate capital intelligently
+        try:
+            import time
+            from agents.evolution_memory.agent import EvolutionMemoryAgent
+            evo = EvolutionMemoryAgent()
+            recent_mistakes = evo.state.get("learned_mistake_catalog", [])
+            recent_failed_syms = set()
+            now_ts = time.time()
+            for m in recent_mistakes[-15:]:
+                if (now_ts - float(m.get("learned_at_ts", now_ts))) < 3600.0:  # 1 hour cooling
+                    recent_failed_syms.add(m.get("symbol", "").upper())
+        except Exception:
+            recent_failed_syms = set()
+
+        for r in screened_results:
+            if r.get("symbol", "").upper() in recent_failed_syms:
+                r["under_mistake_shield"] = True
+                r["safety_score"] = max(0.0, r.get("safety_score", 50.0) - 20.0)
+                if r.get("status") != "UNPREDICTABLE_REJECTED":
+                    r["status"] = "MISTAKE_GUARD_COOLING"
+
         # Sort descending by safety_score
         screened_results.sort(key=lambda x: x["safety_score"], reverse=True)
 

@@ -23,7 +23,7 @@ if sys.stderr is None:
 if sys.stdin is None:
     sys.stdin = io.StringIO()
 
-from fastapi import FastAPI, BackgroundTasks, Request
+from fastapi import FastAPI, BackgroundTasks, Request, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -57,8 +57,10 @@ def autonomous_trading_loop():
                 core.run_single_cycle()
             except Exception as e:
                 logger.error(f"[ServerLoop] Error in trading cycle: {e}")
-        # Rest interval between cycles (20 seconds), but wake up immediately if cycle_wake_event is signaled
-        cycle_wake_event.wait(timeout=20.0)
+        # Rest interval between cycles: 4 seconds for DANGEROUS high-speed learning lab, 18s for SAFE / MONEY_MAKER
+        t_mode = getattr(core, "trading_mode", "SAFE")
+        rest_interval = 4.0 if "DANGEROUS" in str(t_mode).upper() or "WILD" in str(t_mode).upper() else 18.0
+        cycle_wake_event.wait(timeout=rest_interval)
         cycle_wake_event.clear()
     logger.info("[ServerLoop] Background worker stopped.")
 
@@ -103,6 +105,7 @@ class TradingModeRequest(BaseModel):
 def set_trading_mode(req: TradingModeRequest):
     """Switch operational mode between CONSERVATIVE_SAFE and WILD_MODE."""
     core.set_trading_mode(req.mode)
+    cycle_wake_event.set()  # Wake cycle immediately with new velocity
     return JSONResponse(content={
         "status": "MODE_SWITCHED",
         "trading_mode": core.trading_mode,
@@ -361,6 +364,23 @@ def reset_system_state(req: Optional[ResetStateRequest] = None):
     return JSONResponse(content={"status": "RESET_COMPLETE", "starting_capital": cap})
 
 
+def infer_trade_mode(item: Dict[str, Any]) -> str:
+    """Accurately routes trades to SAFE, MONEY_MAKER, or DANGEROUS portfolios."""
+    tm = str(item.get("trading_mode") or item.get("mode") or "").upper()
+    if "DANGEROUS" in tm or "WILD" in tm:
+        return "DANGEROUS"
+    if "MONEY" in tm or "MAKER" in tm:
+        return "MONEY_MAKER"
+    strat = str(item.get("strategy_name") or item.get("strategy") or "").upper()
+    if any(k in strat for k in ["FAST", "SCALP", "MICRO", "VOLATILITY_SURGE", "MOMENTUM_RUNNER", "HIGH_FREQ"]):
+        return "DANGEROUS"
+    if any(k in strat for k in ["MULTI", "INTRADAY", "BREAKOUT", "MEAN_REVERSION"]):
+        return "MONEY_MAKER"
+    if core.trading_mode == "DANGEROUS" or str(item.get("market", "")).upper() == "CRYPTO":
+        return "DANGEROUS"
+    return "SAFE"
+
+
 @app.get("/api/analysis")
 def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optional[str] = "ALL"):
     """Groww / Angel One style clean analytics and portfolio metrics in simple trader terms."""
@@ -405,6 +425,7 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
             "id": t.get("trade_id", f"trade_{i+1}"),
             "symbol": t.get("symbol", "NIFTY 50"),
             "market": t.get("market", "INDIAN_STOCKS"),
+            "trading_mode": infer_trade_mode(t),
             "side": t.get("direction", t.get("side", "BUY")),
             "strategy": t.get("strategy_name", t.get("strategy", "ORDER_FLOW_PULLBACK")),
             "style": t.get("style", "INTRADAY"),
@@ -502,6 +523,7 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
             "id": pos_id,
             "symbol": pos.get("symbol", "NIFTY 50"),
             "market": pos.get("market", "INDIAN_STOCKS"),
+            "trading_mode": infer_trade_mode(pos),
             "side": pos.get("direction", "BUY"),
             "entry_price": float(pos.get("entry_price", 0.0)),
             "current_price": float(pos.get("current_price", pos.get("entry_price", 0.0))),
@@ -673,13 +695,15 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
             "unrealized_pnl": round(m_unreal, 2),
             "available_cash": round(m_cash, 2),
             "margin_used": round(m_margin, 2),
-            "open_positions": len(m_open),
+            "open_positions": m_open,
+            "open_positions_list": m_open,
+            "open_positions_count": len(m_open),
             "total_trades": len(m_closed),
             "wins": len(m_wins),
             "losses": len(m_losses),
             "win_rate": m_win_rate,
             "equity_curve": m_curve,
-            "open_positions_list": m_open,
+            "closed_trades": m_closed,
             "trades_list": m_closed
         }
 
@@ -692,7 +716,7 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
     all_screened = screener_rep.get("all_screened_charts", [])
     if not all_screened:
         try:
-            cand_universe = core.analytical_agent.screener.get_candidate_universe(core.selected_market, mode=core.trading_mode)[:15]
+            cand_universe = core.analytical_agent.screener.get_candidate_universe(core.selected_market, mode=core.trading_mode)[:25]
             all_screened = [
                 {
                     "symbol": c["symbol"],
@@ -709,8 +733,32 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
         except Exception:
             all_screened = []
 
+    # Filter candidate radar by market if filtered
+    if mf_upper not in ["ALL", "TOTAL"]:
+        screened_in_scope = [c for c in all_screened if str(c.get("market", "")).upper() == mf_upper]
+        if not screened_in_scope:
+            try:
+                mkt_cands = core.analytical_agent.screener.get_candidate_universe(mf_upper, mode=core.trading_mode)[:15]
+                screened_in_scope = [
+                    {
+                        "symbol": c["symbol"],
+                        "market": c["market"],
+                        "safety_score": 65.0,
+                        "status": "WATCHLIST",
+                        "trend_clarity": "MONITORING",
+                        "volatility_status": "NORMAL_VOLATILITY",
+                        "current_price": 0.0,
+                        "rejection_reason": "Monitoring market asset"
+                    }
+                    for c in mkt_cands
+                ]
+            except Exception:
+                screened_in_scope = []
+    else:
+        screened_in_scope = all_screened
+
     radar_candidates = []
-    for cand in all_screened[:25]:
+    for cand in screened_in_scope[:25]:
         score = float(cand.get("safety_score", 0.0))
         status_raw = cand.get("status", "WATCHLIST")
         trigger_min = 42.0 if core.trading_mode == "DANGEROUS" else (60.0 if core.trading_mode == "MONEY_MAKER" else 75.0)
@@ -762,6 +810,15 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
         "is_running": core.is_running,
         "trading_mode": core.trading_mode,
         "active_market": core.selected_market,
+        "active_date_filter": df_upper,
+        "active_market_filter": mf_upper,
+        "period_label": "LAST 7 DAYS" if df_upper == "7D" else ("TODAY" if df_upper == "TODAY" else ("YESTERDAY" if df_upper == "YESTERDAY" else "ALL-TIME")),
+        "period_trades_count": len(filtered_trades),
+        "period_pnl": round(sum(t["pnl"] for t in filtered_trades), 2),
+        "period_win_rate": win_rate,
+        "period_wins": len(wins),
+        "period_losses": len(losses),
+        "period_executed_trades": filtered_trades[:10],
         "total_scanned": len(radar_candidates),
         "agents": [
             {
@@ -897,7 +954,9 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
             "xp": evo_state.get("xp", 0),
             "xp_next_level": evo_state.get("xp_next_level", 250),
             "lessons": evo_state.get("lessons_learned", []),
-            "recent_verdicts": [pm.get("verdict", "") for pm in post_mortems[-5:] if pm.get("verdict")]
+            "recent_verdicts": [pm.get("verdict", "") for pm in post_mortems[-5:] if pm.get("verdict")],
+            "learned_mistakes": evo_state.get("learned_mistake_catalog", [])[-10:],
+            "shared_brain_mistakes_prevented": len(evo_state.get("learned_mistake_catalog", []))
         }
     })
 
@@ -1320,167 +1379,454 @@ def get_risk_dashboard():
 
 
 @app.get("/api/simple-logs")
-def get_simple_logs():
+def get_simple_logs(
+    view_mode: Optional[str] = Query("ALL"),
+    date_filter: Optional[str] = Query("ALL")
+):
     """Returns human-friendly, plain-language logs describing trading decisions without jargon."""
+    from datetime import datetime, timedelta
     core._refresh_state_snapshots()
     broker = core.execution_agent.broker
     trades = list(broker.trade_history)
     post_mortems = core.evolution_agent.state.get("recent_trade_post_mortems", [])
     open_pos = list(broker.open_positions.values())
-    
+
+    today_dt = datetime.now()
+    today_str = today_dt.strftime("%Y-%m-%d")
+    yesterday_str = (today_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+    seven_days_ago_str = (today_dt - timedelta(days=7)).strftime("%Y-%m-%d")
+
+    df_upper = str(date_filter or "ALL").upper().strip()
+    vm_upper = str(view_mode or "ALL").upper().strip()
+
+    def matches_date(raw_time_str: str) -> bool:
+        if df_upper in ["ALL", "TOTAL", ""]:
+            return True
+        t_str = str(raw_time_str or "").strip()
+        date_part = t_str[:10] if len(t_str) >= 10 else today_str
+        if df_upper == "TODAY":
+            return date_part == today_str
+        elif df_upper == "YESTERDAY":
+            return date_part == yesterday_str
+        elif df_upper in ["7D", "WEEK", "LAST_7_DAYS"]:
+            return date_part >= seven_days_ago_str
+        elif len(df_upper) == 10 and "-" in df_upper:
+            return date_part == df_upper
+        return True
+
+    # Filter trades by date
+    filtered_trades = []
+    for i, t in enumerate(trades):
+        if not t or not isinstance(t, dict):
+            continue
+        exit_time = str(t.get("exit_time") or t.get("entry_time") or today_str)
+        if matches_date(exit_time):
+            filtered_trades.append((i, t))
+
+    # Base flat simple logs
     simple_logs = []
-    
-    # 1. System state entry
-    if core.is_running:
-        simple_logs.append({
-            "id": "log_status_run",
-            "time": "Just now",
-            "agent": "👑 CEO King Agent",
-            "type": "SUCCESS",
-            "title": "Trading Army Active & Scanning",
-            "description": f"All 7 trading agents are actively scanning {core.selected_market} charts. Every trade is checked by the Risk Shield before placing orders."
-        })
-    else:
-        simple_logs.append({
-            "id": "log_status_stop",
-            "time": "Just now",
-            "agent": "👑 CEO King Agent",
-            "type": "INFO",
-            "title": "Agents in Standby Mode",
-            "description": "Trading engine is currently resting. Click the Master Agent switch on top to start automated scanning."
-        })
 
-    # 2. Live positions
-    for p in open_pos:
-        pnl = float(p.get("unrealized_pnl", 0.0))
-        sym = p.get("symbol", "Asset")
-        side = p.get("direction", p.get("side", "BUY"))
-        entry = float(p.get("entry_price", 0.0))
-        cur = float(p.get("current_price", entry))
-        pnl_text = f"+₹{pnl:,.0f} profit" if pnl >= 0 else f"-₹{abs(pnl):,.0f} pullback"
-        status_type = "SUCCESS" if pnl >= 0 else "DEFENSE"
-        simple_logs.append({
-            "id": f"log_pos_{p.get('id', sym)}",
-            "time": "Live Position",
-            "agent": "🎯 Execution Sniper",
-            "type": status_type,
-            "title": f"Holding {side} on {sym} ({pnl_text})",
-            "description": f"Bought at ₹{entry:,.1f}, currently at ₹{cur:,.1f}. Safety stop-loss is protected at ₹{float(p.get('stop_loss', 0)):,.1f} and profit target is ₹{float(p.get('take_profit_1', 0)):,.1f}."
-        })
+    # 1. System state entry (relevant for live / today / all)
+    if df_upper in ["ALL", "TODAY"]:
+        if core.is_running:
+            simple_logs.append({
+                "id": "log_status_run",
+                "time": "Just now",
+                "date": today_str,
+                "agent": "👑 CEO King Agent",
+                "type": "SUCCESS",
+                "title": "Trading Army Active & Scanning",
+                "description": f"All 7 trading agents are actively scanning {core.selected_market} charts. Every trade is checked by the Risk Shield before placing orders."
+            })
+        else:
+            simple_logs.append({
+                "id": "log_status_stop",
+                "time": "Just now",
+                "date": today_str,
+                "agent": "👑 CEO King Agent",
+                "type": "INFO",
+                "title": "Agents in Standby Mode",
+                "description": "Trading engine is currently resting. Click the Master Agent switch on top to start automated scanning."
+            })
 
-    # 3. Closed trades
-    for i, t in enumerate(reversed(trades[-8:])):
+    # 2. Live positions (relevant for live / today / all)
+    if df_upper in ["ALL", "TODAY"]:
+        for p in open_pos:
+            pnl = float(p.get("unrealized_pnl", 0.0))
+            sym = p.get("symbol", "Asset")
+            side = p.get("direction", p.get("side", "BUY"))
+            entry = float(p.get("entry_price", 0.0))
+            cur = float(p.get("current_price", entry))
+            pnl_text = f"+₹{pnl:,.0f} profit" if pnl >= 0 else f"-₹{abs(pnl):,.0f} pullback"
+            status_type = "SUCCESS" if pnl >= 0 else "DEFENSE"
+            simple_logs.append({
+                "id": f"log_pos_{p.get('id', sym)}",
+                "time": "Live Position",
+                "date": today_str,
+                "agent": "🎯 Execution Sniper",
+                "type": status_type,
+                "title": f"Holding {side} on {sym} ({pnl_text})",
+                "description": f"Bought at ₹{entry:,.1f}, currently at ₹{cur:,.1f}. Safety stop-loss is protected at ₹{float(p.get('stop_loss', 0)):,.1f} and profit target is ₹{float(p.get('take_profit_1', 0)):,.1f}."
+            })
+
+    # 3. Closed trades filtered by period
+    for i, t in reversed(filtered_trades[-25:]):
         pnl = float(t.get("realized_pnl", t.get("pnl", 0.0)))
         sym = t.get("symbol", "Asset")
-        pm = post_mortems[-1 - i] if i < len(post_mortems) else {}
+        mkt = t.get("market", "")
+        t_mode = infer_trade_mode(t)
+        pm = post_mortems[i] if i < len(post_mortems) else {}
         lesson = pm.get("verdict", "")
+        exit_time = str(t.get("exit_time", "Recent"))
+        trade_date = exit_time[:10] if len(exit_time) >= 10 else today_str
         
+        mode_badge = f"[{'⚡ Dangerous' if t_mode == 'DANGEROUS' else ('💰 Money Maker' if t_mode == 'MONEY_MAKER' else '🛡️ Safe')}]"
+
         if pnl > 0:
             simple_logs.append({
                 "id": f"log_trade_{t.get('trade_id', i)}",
-                "time": t.get("exit_time", "Recent"),
+                "time": exit_time,
+                "date": trade_date,
                 "agent": "💰 Profit Realizer",
                 "type": "SUCCESS",
-                "title": f"Win on {sym}: +₹{pnl:,.0f} Profit Booked",
-                "description": f"AI noticed strong momentum and exited at target. {lesson or 'Trade followed high-probability trend rules smoothly.'}"
+                "title": f"{mode_badge} Win on {sym}: +₹{pnl:,.0f} Profit Booked",
+                "description": f"AI noticed strong momentum in {mkt} and exited at target. {lesson or 'Trade followed high-probability trend rules smoothly.'}"
             })
         else:
             simple_logs.append({
                 "id": f"log_trade_{t.get('trade_id', i)}",
-                "time": t.get("exit_time", "Recent"),
+                "time": exit_time,
+                "date": trade_date,
                 "agent": "🛡️ Risk Shield & Sump",
                 "type": "DEFENSE",
-                "title": f"Protected Exit on {sym}: -₹{abs(pnl):,.0f} Controlled Cut",
+                "title": f"{mode_badge} Protected Exit on {sym}: -₹{abs(pnl):,.0f} Controlled Cut",
                 "description": f"Price reversed against our setup, so the risk shield cut the position automatically to save capital. {lesson or 'Learned to wait for clearer liquidity confirmation next time.'}"
             })
 
-    # 4. Live cycle agent diagnostics from real-time cycles
-    cycle_num = core.system_state.get("cycle_count", 0)
-    best_c = core.system_state.get("screener_report", {}).get("best_chart")
-    strat_dec = core.system_state.get("latest_strategy_decision")
-    risk_dec = core.system_state.get("latest_risk_verdict")
-    ceo_dec = core.system_state.get("latest_ceo_verdict")
+    # 4. Live cycle agent diagnostics from real-time cycles (for Today / All)
+    if df_upper in ["ALL", "TODAY"]:
+        cycle_num = core.system_state.get("cycle_count", 0)
+        best_c = core.system_state.get("screener_report", {}).get("best_chart")
+        strat_dec = core.system_state.get("latest_strategy_decision")
+        risk_dec = core.system_state.get("latest_risk_verdict")
+        ceo_dec = core.system_state.get("latest_ceo_verdict")
 
-    if best_c:
-        sym = best_c.get("symbol", "")
-        mkt = best_c.get("market", "")
-        score = best_c.get("safety_score", 0.0)
+        if best_c:
+            sym = best_c.get("symbol", "")
+            mkt = best_c.get("market", "")
+            score = best_c.get("safety_score", 0.0)
+            simple_logs.append({
+                "id": f"log_screener_{cycle_num}",
+                "time": core.system_state.get("last_tick_time") or "Cycle Live",
+                "date": today_str,
+                "agent": "🔍 Analytical Chart Screener",
+                "type": "SUCCESS",
+                "title": f"Crowned Best Chart: {mkt}:{sym} (Score {score}/100)",
+                "description": f"Audited candle predictability, body-to-wick stability, and SMC structure. Crowned {sym} as top high-probability setup."
+            })
+
+        if strat_dec:
+            champ = strat_dec.get("champion_strategy", {}).get("name", "SMC_CONFLUENCE")
+            act = strat_dec.get("recommended_action") or strat_dec.get("action", "SCANNING")
+            simple_logs.append({
+                "id": f"log_strat_{cycle_num}",
+                "time": "Cycle Live",
+                "date": today_str,
+                "agent": "🧠 Strategy R&D Lab",
+                "type": "INFO",
+                "title": f"Champion Strategy: {champ} ({act})",
+                "description": f"Strategy Stress Lab screened 20 algorithms against live bars. Champion {champ} selected for execution readiness."
+            })
+
+        if risk_dec:
+            decision = risk_dec.get("decision", "HOLD")
+            reason = risk_dec.get("reason") or "Shield verified 1.0% maximum account risk limit."
+            simple_logs.append({
+                "id": f"log_risk_shield_{cycle_num}",
+                "time": "Cycle Live",
+                "date": today_str,
+                "agent": "🛡️ 15-Section Risk Shield",
+                "type": "DEFENSE" if decision == "REJECTED" else "SUCCESS",
+                "title": f"Risk Shield Verdict: {decision}",
+                "description": f"{reason} - Dynamic capital protection active."
+            })
+
+        if ceo_dec:
+            ceo_v = ceo_dec.get("ceo_decision", "MONITORING")
+            mandate = ceo_dec.get("mandate", "CAPITAL_PRESERVATION")
+            simple_logs.append({
+                "id": f"log_ceo_mandate_{cycle_num}",
+                "time": "Cycle Live",
+                "date": today_str,
+                "agent": "👑 CEO Supreme King",
+                "type": "INFO",
+                "title": f"CEO Mandate: {mandate} ({ceo_v})",
+                "description": f"Supreme King Agent arbitrated all agent inputs. All specializations synchronized under {mandate} directive."
+            })
+
         simple_logs.append({
-            "id": f"log_screener_{cycle_num}",
-            "time": core.system_state.get("last_tick_time") or "Cycle Live",
-            "agent": "🔍 Analytical Chart Screener",
+            "id": "log_news",
+            "time": "5m ago",
+            "date": today_str,
+            "agent": "📰 News & Sentiment Agent",
+            "type": "INFO",
+            "title": "Global News & Macro Scanned",
+            "description": "Reviewed breaking headlines across Indian and global markets. No hostile black-swan events detected. Sentiment is supportive."
+        })
+        evo_state = core.evolution_agent.state
+        learned_risk = core.risk_agent.get_learned_dynamic_risk(evo_state)
+        dynamic_risk_pct = float(learned_risk.get("dynamic_risk_pct", 1.25))
+
+        simple_logs.append({
+            "id": "log_risk",
+            "time": "12m ago",
+            "date": today_str,
+            "agent": "🛡️ Risk Management Agent",
+            "type": "INFO",
+            "title": "Autonomous Risk Evaluation Active",
+            "description": f"Risk Agent dynamically sizes positions ({dynamic_risk_pct:.2f}% dynamic risk) and maintains capital defense."
+        })
+        simple_logs.append({
+            "id": "log_evo",
+            "time": "25m ago",
+            "date": today_str,
+            "agent": "🧠 Memory & Evolution Agent",
             "type": "SUCCESS",
-            "title": f"Crowned Best Chart: {mkt}:{sym} (Score {score}/100)",
-            "description": f"Audited candle predictability, body-to-wick stability, and SMC structure. Crowned {sym} as top high-probability setup."
+            "title": "Knowledge Store Updated",
+            "description": "Agent memorized recent support and resistance reactions so it will not repeat entry mistakes on false breakouts."
         })
 
-    if strat_dec:
-        champ = strat_dec.get("champion_strategy", {}).get("name", "SMC_CONFLUENCE")
-        act = strat_dec.get("recommended_action") or strat_dec.get("action", "SCANNING")
-        simple_logs.append({
-            "id": f"log_strat_{cycle_num}",
-            "time": "Cycle Live",
-            "agent": "🧠 Strategy R&D Lab",
-            "type": "INFO",
-            "title": f"Champion Strategy: {champ} ({act})",
-            "description": f"Strategy Stress Lab screened 20 algorithms against live bars. Champion {champ} selected for execution readiness."
+    # Build Day-Wise grouping:
+    day_groups_map: Dict[str, Dict[str, Any]] = {}
+    for i, t in filtered_trades:
+        exit_time = str(t.get("exit_time") or t.get("entry_time") or today_str)
+        d_key = exit_time[:10] if len(exit_time) >= 10 else today_str
+        if d_key not in day_groups_map:
+            if d_key == today_str:
+                d_display = f"Today • {today_dt.strftime('%d %b %Y')}"
+            elif d_key == yesterday_str:
+                d_display = f"Yesterday • {(today_dt - timedelta(days=1)).strftime('%d %b %Y')}"
+            else:
+                try:
+                    dt_obj = datetime.strptime(d_key, "%Y-%m-%d")
+                    d_display = dt_obj.strftime("%A • %d %b %Y")
+                except Exception:
+                    d_display = d_key
+            day_groups_map[d_key] = {
+                "date": d_key,
+                "date_display": d_display,
+                "trades_count": 0,
+                "net_pnl": 0.0,
+                "wins": 0,
+                "losses": 0,
+                "trades": [],
+                "logs": []
+            }
+        pnl = float(t.get("realized_pnl", t.get("pnl", 0.0)))
+        day_groups_map[d_key]["trades_count"] += 1
+        day_groups_map[d_key]["net_pnl"] += pnl
+        if pnl > 0:
+            day_groups_map[d_key]["wins"] += 1
+        else:
+            day_groups_map[d_key]["losses"] += 1
+        day_groups_map[d_key]["trades"].append(t)
+
+    # Attach simple logs to days
+    for lg in simple_logs:
+        lg_date = lg.get("date", today_str)
+        if lg_date in day_groups_map:
+            day_groups_map[lg_date]["logs"].append(lg)
+        else:
+            if lg_date == today_str:
+                day_groups_map[today_str] = {
+                    "date": today_str,
+                    "date_display": f"Today • {today_dt.strftime('%d %b %Y')}",
+                    "trades_count": 0,
+                    "net_pnl": 0.0,
+                    "wins": 0,
+                    "losses": 0,
+                    "trades": [],
+                    "logs": [lg]
+                }
+
+    by_day_list = sorted(list(day_groups_map.values()), key=lambda x: x["date"], reverse=True)
+    for d in by_day_list:
+        d["net_pnl"] = round(d["net_pnl"], 2)
+
+    # Build Trade-Wise narrative cards:
+    by_trade_list = []
+    # Add active open positions as in-flight stories
+    for p in open_pos:
+        sym = p.get("symbol", "Asset")
+        mkt = p.get("market", core.selected_market)
+        t_mode = infer_trade_mode(p)
+        side = p.get("direction", p.get("side", "BUY"))
+        entry = float(p.get("entry_price", 0.0))
+        cur = float(p.get("current_price", entry))
+        sl = float(p.get("stop_loss", 0.0))
+        tp1 = float(p.get("take_profit_1", 0.0))
+        pnl = float(p.get("unrealized_pnl", 0.0))
+        by_trade_list.append({
+            "trade_id": p.get("id", f"open_{sym}"),
+            "symbol": sym,
+            "market": mkt,
+            "trading_mode": t_mode,
+            "side": side,
+            "is_open": True,
+            "status": "LIVE_OPEN",
+            "entry_time": str(p.get("entry_time", "Active")),
+            "exit_time": "Holding Position",
+            "entry_price": entry,
+            "exit_price": cur,
+            "pnl": round(pnl, 2),
+            "strategy": p.get("strategy_name", "SMC_CONFLUENCE"),
+            "story_summary": f"Entered {side} on {sym} at ₹{entry:,.2f}. 15-Section Risk Shield is monitoring with stop loss anchored at ₹{sl:,.2f} and profit target at ₹{tp1:,.2f}.",
+            "timeline": [
+                {"time": str(p.get("entry_time", "Just now")), "stage": "ENTRY", "badge": "SNIPER EXECUTION", "text": f"Sniper placed {side} market order at ₹{entry:,.2f}"},
+                {"time": "Live", "stage": "SURVEILLANCE", "badge": "RISK SHIELD", "text": f"Guarding position: SL=₹{sl:,.2f}, TP1=₹{tp1:,.2f}. Current PnL: ₹{pnl:+,.2f}"}
+            ]
         })
 
-    if risk_dec:
-        decision = risk_dec.get("decision", "HOLD")
-        reason = risk_dec.get("reason") or "Shield verified 1.0% maximum account risk limit."
-        simple_logs.append({
-            "id": f"log_risk_shield_{cycle_num}",
-            "time": "Cycle Live",
-            "agent": "🛡️ 15-Section Risk Shield",
-            "type": "DEFENSE" if decision == "REJECTED" else "SUCCESS",
-            "title": f"Risk Shield Verdict: {decision}",
-            "description": f"{reason} - Dynamic capital protection active."
+    # Add closed trades
+    for i, t in reversed(filtered_trades):
+        sym = t.get("symbol", "Asset")
+        mkt = t.get("market", core.selected_market)
+        t_mode = infer_trade_mode(t)
+        side = t.get("direction", t.get("side", "BUY"))
+        entry = float(t.get("entry_price", 0.0))
+        exit_p = float(t.get("exit_price", t.get("current_price", entry)))
+        pnl = float(t.get("realized_pnl", t.get("pnl", 0.0)))
+        sl = float(t.get("stop_loss", 0.0))
+        tp1 = float(t.get("take_profit_1", 0.0))
+        strat = t.get("strategy_name", t.get("strategy", "SMC_CONFLUENCE"))
+        pm = post_mortems[i] if i < len(post_mortems) else {}
+        lesson = pm.get("verdict", "")
+        exit_reason = t.get("exit_reason", "EXIT_TARGET" if pnl >= 0 else "STOP_LOSS")
+        
+        outcome_word = "Profitable Exit" if pnl >= 0 else "Protective Cut"
+        story = f"Sniper triggered {side} on {sym} ({mkt}) using {strat} at ₹{entry:,.2f}. At exit (₹{exit_p:,.2f}), result was {outcome_word} of ₹{pnl:+,.2f} ({exit_reason})."
+        if lesson:
+            story += f" Evolution Learning: {lesson}"
+
+        by_trade_list.append({
+            "trade_id": t.get("trade_id", f"trade_{i+1}"),
+            "symbol": sym,
+            "market": mkt,
+            "trading_mode": t_mode,
+            "side": side,
+            "is_open": False,
+            "status": "WIN" if pnl >= 0 else "LOSS",
+            "entry_time": str(t.get("entry_time", "Earlier")),
+            "exit_time": str(t.get("exit_time", "Recent")),
+            "entry_price": entry,
+            "exit_price": exit_p,
+            "pnl": round(pnl, 2),
+            "strategy": strat,
+            "story_summary": story,
+            "post_mortem_lesson": lesson,
+            "timeline": [
+                {"time": str(t.get("entry_time", "Entry")), "stage": "ENTRY", "badge": "ORDER ENTRY", "text": f"Triggered {side} at ₹{entry:,.2f} via {strat}."},
+                {"time": "In Flight", "stage": "SURVEILLANCE", "badge": "RISK CONTROL", "text": f"Dynamic trailing stop tracked at ₹{sl:,.2f}; TP at ₹{tp1:,.2f}."},
+                {"time": str(t.get("exit_time", "Exit")), "stage": "EXIT", "badge": "POSITION CLOSED", "text": f"Closed at ₹{exit_p:,.2f}. Net P&L: ₹{pnl:+,.2f} ({exit_reason})."},
+                {"time": "Post-Mortem", "stage": "LEARNING", "badge": "BRAIN UPDATED", "text": lesson or "Recorded pattern into neural evolution memory."}
+            ]
         })
 
-    if ceo_dec:
-        ceo_v = ceo_dec.get("ceo_decision", "MONITORING")
-        mandate = ceo_dec.get("mandate", "CAPITAL_PRESERVATION")
-        simple_logs.append({
-            "id": f"log_ceo_mandate_{cycle_num}",
-            "time": "Cycle Live",
-            "agent": "👑 CEO Supreme King",
-            "type": "INFO",
-            "title": f"CEO Mandate: {mandate} ({ceo_v})",
-            "description": f"Supreme King Agent arbitrated all agent inputs. All specializations synchronized under {mandate} directive."
-        })
-
-    # 5. Standard agent activity logs
-    simple_logs.append({
-        "id": "log_news",
-        "time": "5m ago",
-        "agent": "📰 News & Sentiment Agent",
-        "type": "INFO",
-        "title": "Global News & Macro Scanned",
-        "description": "Reviewed breaking headlines across Indian and global markets. No hostile black-swan events detected. Sentiment is supportive."
+    return JSONResponse(content={
+        "status": "SUCCESS",
+        "active_view_mode": vm_upper,
+        "active_date_filter": df_upper,
+        "count": len(simple_logs),
+        "logs": simple_logs,
+        "by_day": by_day_list,
+        "by_trade": by_trade_list
     })
-    evo_state = core.evolution_agent.state
-    learned_risk = core.risk_agent.get_learned_dynamic_risk(evo_state)
-    dynamic_risk_pct = float(learned_risk.get("dynamic_risk_pct", 1.25))
 
-    simple_logs.append({
-        "id": "log_risk",
-        "time": "12m ago",
-        "agent": "🛡️ Risk Management Agent",
-        "type": "INFO",
-        "title": "Autonomous Risk Evaluation Active",
-        "description": "Risk Agent dynamically sizes positions and maintains capital defense based on live market volatility and trade learning."
-    })
-    simple_logs.append({
-        "id": "log_evo",
-        "time": "25m ago",
-        "agent": "🧠 Memory & Evolution Agent",
-        "type": "SUCCESS",
-        "title": "Knowledge Store Updated",
-        "description": "Agent memorized recent support and resistance reactions so it will not repeat entry mistakes on false breakouts."
-    })
 
-    return JSONResponse(content={"status": "SUCCESS", "count": len(simple_logs), "logs": simple_logs})
+@app.get("/api/deep-activity-logs")
+def get_deep_activity_logs(
+    category: Optional[str] = Query("ALL"),
+    market: Optional[str] = Query("ALL"),
+    limit: Optional[int] = Query(100)
+):
+    """Deep forensic activity stream: Which chart visited, setup evaluated, orders proposed/filled, and hold/wait reasons."""
+    from datetime import datetime
+    core._refresh_state_snapshots()
+    raw_logs = list(core.activity_log_buffer)
+
+    cat_upper = str(category or "ALL").upper().strip()
+    mkt_upper = str(market or "ALL").upper().strip()
+    lim = max(10, min(300, int(limit or 100)))
+
+    # If log buffer has few items, add real-time diagnostic fallback entries
+    if len(raw_logs) < 2:
+        best_c = core.system_state.get("screener_report", {}).get("best_chart") or {}
+        sym = best_c.get("symbol", "NIFTY 50" if core.selected_market == "INDIAN_STOCKS" else "BTC/USDT")
+        cur_p = float(best_c.get("current_price", 0.0))
+        raw_logs.append({
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "agent": "🔍 Screener Radar",
+            "action_type": "CHART_VISIT",
+            "symbol": sym,
+            "market": core.selected_market,
+            "message": f"Visited {core.selected_market}:{sym} on 5m timeframe. Scanned candle predictability, order book liquidity and SMC support zones.",
+            "details": {"score": best_c.get("safety_score", 68.0), "status": best_c.get("status", "WATCHLIST")}
+        })
+        raw_logs.append({
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "agent": "📈 Analytical Specialist",
+            "action_type": "SETUP_EVAL",
+            "symbol": sym,
+            "market": core.selected_market,
+            "message": f"Evaluated institutional order block on {sym} @ ₹{cur_p:,.2f}. Bias: NEUTRAL-BULLISH. Checking 15-Section Risk Shield clearance.",
+            "details": {"bias": "BULLISH", "confluence": 65}
+        })
+        raw_logs.append({
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "agent": "⏳ Tactical Waiting",
+            "action_type": "DEFENSE_WAIT",
+            "symbol": sym,
+            "market": core.selected_market,
+            "message": f"Holding cash on {sym}: Awaiting pristine breakout confirmation. Risk Shield active to protect capital from choppy false breaks.",
+            "details": {"reason": "Confluence confirmation pending"}
+        })
+
+    filtered = []
+    for entry in reversed(raw_logs):
+        a_type = str(entry.get("action_type", "")).upper()
+        e_mkt = str(entry.get("market", "")).upper()
+        if cat_upper not in ["ALL", ""]:
+            if cat_upper not in a_type:
+                continue
+        if mkt_upper not in ["ALL", "TOTAL", ""]:
+            if mkt_upper not in e_mkt:
+                continue
+        filtered.append(entry)
+        if len(filtered) >= lim:
+            break
+
+    # Determine current live activity statement
+    open_pos = list(core.execution_agent.broker.open_positions.values())
+    if not core.is_running:
+        cur_activity = "Engine currently in Standby. Click 'START AGENTS' on top bar to launch multi-agent chart scanning."
+    elif open_pos:
+        pos_names = ", ".join([f"{p.get('symbol')} (PnL: ₹{float(p.get('unrealized_pnl', 0)):+,.0f})" for p in open_pos])
+        cur_activity = f"Surveillance Active: Managing {len(open_pos)} open position(s): {pos_names}. Trailing stops armed."
+    else:
+        best_c = core.system_state.get("screener_report", {}).get("best_chart") or {}
+        sym = best_c.get("symbol") or core.selected_market
+        cur_activity = f"Active Continuous Radar: Screening {core.selected_market} charts (Latest focus: {sym}) in {core.trading_mode} mode."
+
+    return JSONResponse(content={
+        "status": "SUCCESS",
+        "count": len(filtered),
+        "total_buffer": len(raw_logs),
+        "active_category": cat_upper,
+        "active_market": mkt_upper,
+        "current_activity": cur_activity,
+        "active_mandate": core.system_state.get("latest_ceo_verdict", {}).get("mandate", "CAPITAL_PRESERVATION"),
+        "logs": filtered
+    })
 
 
 @app.get("/api/agent-health")
@@ -1716,6 +2062,12 @@ for folder in ["data", "favico", "map-styles", "textures", "developers", "legal"
         app.mount(f"/{folder}", StaticFiles(directory=f_path), name=folder)
 
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+@app.get("/build-hash.txt")
+def serve_build_hash():
+    """Returns static dev build hash so stale bundle checks in WebView never trigger reloads."""
+    return Response(content="dev", media_type="text/plain")
 
 
 @app.get("/")

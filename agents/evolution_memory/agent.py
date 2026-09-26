@@ -272,6 +272,60 @@ class EvolutionMemoryAgent:
             self.state["rank"] = ranks[idx]
             logger.info(f"[EvolutionMemory] 🌟 LEVEL UP! Agent is now Level {self.state['agent_level']} ({self.state['rank']})!")
 
+        # Shared Brain: Sync with Learned Mistake Catalog & Mem0 Long-Term Memory
+        if "learned_mistake_catalog" not in self.state:
+            self.state["learned_mistake_catalog"] = []
+
+        sym = closed_trade.get("symbol", "UNKNOWN")
+        mkt = closed_trade.get("market", "CRYPTO")
+        t_mode = closed_trade.get("trading_mode") or ("DANGEROUS" if closed_trade.get("is_wild_mode") else "SAFE")
+
+        if not is_win or pnl < 0:
+            mistake_entry = {
+                "id": f"mistake_{int(time.time() * 1000)}",
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "symbol": sym,
+                "market": mkt,
+                "strategy": strat,
+                "trading_mode": t_mode,
+                "loss_amount": abs(pnl),
+                "r_multiple": r_mult,
+                "exit_reason": exit_reason,
+                "bars_held": bars_held,
+                "lesson": verdict,
+                "learned_at_ts": time.time()
+            }
+            self.state["learned_mistake_catalog"].append(mistake_entry)
+            if len(self.state["learned_mistake_catalog"]) > 60:
+                self.state["learned_mistake_catalog"].pop(0)
+
+            # Auto-induce universal negative constraint into Mem0 shared memory
+            try:
+                from agents.evolution_memory.mem0_memory_engine import Mem0MemoryEngine
+                mem0 = Mem0MemoryEngine()
+                mem0.record_episodic_trade(closed_trade)
+                mem0.add_memory(
+                    content=f"MISTAKE_AVOIDANCE: {t_mode} mode suffered loss on {mkt}:{sym} with '{strat}' (-₹{abs(pnl):,.2f}, Exit: {exit_reason}). Lesson: {verdict}. Do not repeat this entry without confirmed structure shift!",
+                    category="MISTAKE_PREVENTION",
+                    tags=[str(sym).lower(), str(mkt).lower(), str(strat).lower(), "repeat_mistake_guard", "shared_brain"]
+                )
+                logger.info(f"[EvolutionMemory] 🧠 SHARED BRAIN UPDATED: Mistake on {sym} recorded. All modes ({t_mode}, SAFE, MONEY_MAKER) shielded from repeating this mistake!")
+            except Exception as e:
+                logger.warning(f"[EvolutionMemory] Mem0 sync warning: {e}")
+        else:
+            # Sync victory into Mem0 shared memory
+            try:
+                from agents.evolution_memory.mem0_memory_engine import Mem0MemoryEngine
+                mem0 = Mem0MemoryEngine()
+                mem0.record_episodic_trade(closed_trade)
+                mem0.add_memory(
+                    content=f"VICTORY_REINFORCEMENT: Edge confirmed on {mkt}:{sym} with '{strat}' (+₹{pnl:,.2f}, +{r_mult}R). Trail & target harvested successfully in {t_mode} mode.",
+                    category="VICTORY_REINFORCEMENT",
+                    tags=[str(sym).lower(), str(mkt).lower(), str(strat).lower(), "edge_validated"]
+                )
+            except Exception as e:
+                pass
+
         self._save_ledger()
         logger.info(f"[EvolutionMemory] Post-Mortem logged: {verdict}")
         return post_mortem_record
@@ -328,6 +382,25 @@ class EvolutionMemoryAgent:
                     "severity": "HIGH",
                     "message": f"Strategy '{strategy_name}' has 0 wins and {losses} loss(es) in live trading. Proceed with extreme caution."
                 })
+
+        # 0. Check Shared Brain Learned Mistake Catalog (Cross-Mode Instant Learning)
+        catalog = self.state.get("learned_mistake_catalog", [])
+        now_ts = time.time()
+        for m in reversed(catalog[-25:]):
+            if m.get("symbol", "").upper() == symbol.upper():
+                age_min = (now_ts - float(m.get("learned_at_ts", now_ts))) / 60.0
+                if age_min < 240.0:  # 4-hour active mistake guard
+                    is_exact_strat = (m.get("strategy") == strategy_name)
+                    warnings.append({
+                        "type": "SHARED_BRAIN_MISTAKE_GUARD",
+                        "severity": "CRITICAL" if is_exact_strat else "HIGH",
+                        "strategy": m.get("strategy"),
+                        "symbol": symbol,
+                        "source_mode": m.get("trading_mode"),
+                        "loss_amount": m.get("loss_amount"),
+                        "message": f"SHARED BRAIN SHIELD: {m.get('trading_mode')} mode recently lost ₹{m.get('loss_amount'):,.2f} on {symbol} with '{m.get('strategy')}'. Lesson: {m.get('lesson')}. Re-entry blocked to avoid repeating mistake across all modes!"
+                    })
+                    break
 
         # 1. Check recent trade post-mortems for immediate repeat mistake risk
         recent_trade_losses = [

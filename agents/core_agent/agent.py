@@ -65,6 +65,33 @@ class CoreTradingAgent:
         self.clone_manager = ShadowCloneManager()
         self.started_at: Optional[float] = None
         
+        self.activity_log_buffer: List[Dict[str, Any]] = [
+            {
+                "id": f"act_init_1",
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "time": time.strftime("%H:%M:%S"),
+                "agent": "👑 CEO Supreme King",
+                "action_type": "ENGINE_BOOT",
+                "symbol": "SYSTEM",
+                "market": self.selected_market,
+                "message": f"Autonomous trading collective initialized. Regime: {self.trading_mode} mode. 9 specialist agents online.",
+                "details": {"mode": self.trading_mode, "status": "ONLINE"},
+                "trading_mode": self.trading_mode
+            },
+            {
+                "id": f"act_init_2",
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "time": time.strftime("%H:%M:%S"),
+                "agent": "🛡️ 15-Section Risk Shield",
+                "action_type": "CIRCUIT_CHECK",
+                "symbol": "SYSTEM",
+                "market": self.selected_market,
+                "message": "Capital defense armed. Max daily drawdown capped at 4.0%, anti-chase guard active.",
+                "details": {"max_risk_pct": 1.0, "circuit_breaker": 4.0},
+                "trading_mode": self.trading_mode
+            }
+        ]
+
         # System State
         self.system_state: Dict[str, Any] = {
             "status": "STOPPED",  # RUNNING | PAUSED | STOPPED
@@ -99,9 +126,44 @@ class CoreTradingAgent:
             "latest_risk_verdict": {},
             "latest_ceo_verdict": {},
             "ceo_dashboard": {},
-            "shadow_clones": {}
+            "shadow_clones": {},
+            "activity_logs": []
         }
         self._refresh_state_snapshots()
+
+    def log_agent_activity(
+        self,
+        agent_name: str,
+        action_type: str,
+        symbol: str,
+        market: str,
+        message: str,
+        details: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Records high-resolution operational telemetry for user audit:
+        - Which chart agent visited
+        - What setup it evaluated
+        - Where it formulated trade entries/SL/TP
+        - Why it approved or chose to hold/wait
+        - Live order fills and trailing SL adjustments
+        """
+        entry = {
+            "id": f"act_{len(self.activity_log_buffer) + 1}_{int(time.time()*1000)}",
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "time": time.strftime("%H:%M:%S"),
+            "agent": agent_name,
+            "action_type": action_type,  # CHART_VISIT | SETUP_EVAL | ORDER_PROPOSAL | ORDER_FILLED | TRADE_EXIT | DEFENSE_WAIT | CIRCUIT_CHECK
+            "symbol": symbol,
+            "market": market,
+            "message": message,
+            "details": details or {},
+            "trading_mode": self.trading_mode
+        }
+        self.activity_log_buffer.append(entry)
+        if len(self.activity_log_buffer) > 400:
+            self.activity_log_buffer.pop(0)
+        return entry
 
     def _refresh_state_snapshots(self):
         """Refreshes portfolio, positions, and evolution memory in system state."""
@@ -117,6 +179,7 @@ class CoreTradingAgent:
         }
         self.system_state["ceo_dashboard"] = self.ceo_agent.get_ceo_dashboard_snapshot()
         self.system_state["shadow_clones"] = self.clone_manager.get_manager_snapshot()
+        self.system_state["activity_logs"] = self.activity_log_buffer[-100:]
         self.risk_agent.update_account_balance(self.system_state["portfolio"]["equity"])
 
     def set_market(self, market: str):
@@ -315,6 +378,27 @@ class CoreTradingAgent:
         active_market = best_chart.get("market", self.selected_market)
         primary_symbol = best_chart.get("symbol", "BTC")
 
+        # Telemetry: Log candidate charts visited
+        for cand in screener_report.get("all_screened_charts", [])[:3]:
+            if cand.get("symbol") != primary_symbol:
+                self.log_agent_activity(
+                    agent_name="🔍 Screener Radar",
+                    action_type="CHART_VISIT",
+                    symbol=cand.get("symbol", ""),
+                    market=cand.get("market", self.selected_market),
+                    message=f"Visited {cand.get('market')}:{cand.get('symbol')} on {scan_timeframe}. Predictability: {cand.get('safety_score', 0)}/100 | Status: {cand.get('status')} | {cand.get('rejection_reason', 'Awaiting pull-back')}",
+                    details=cand
+                )
+
+        self.log_agent_activity(
+            agent_name="👑 Primary Focus",
+            action_type="CHART_VISIT",
+            symbol=primary_symbol,
+            market=active_market,
+            message=f"Selected {active_market}:{primary_symbol} on {scan_timeframe} (Predictability: {best_chart.get('safety_score', 0)}/100, Structure: {best_chart.get('trend_clarity', 'EVALUATING')})",
+            details=best_chart
+        )
+
         logger.info(
             f"[CoreAgent] 🎯 Best {chart_label} Chosen: {active_market}:{primary_symbol} "
             f"(Score: {best_chart.get('safety_score', 0.0)}/100 | {best_chart.get('status')} | "
@@ -340,6 +424,15 @@ class CoreTradingAgent:
         except Exception:
             pass
 
+        self.log_agent_activity(
+            agent_name="📈 Analytical Specialist",
+            action_type="SETUP_EVAL",
+            symbol=primary_symbol,
+            market=active_market,
+            message=f"Deep scan on {primary_symbol} @ ₹{current_price:,.2f}: Bias={analytical_report.get('bias', 'NEUTRAL')}, Confluence={analytical_report.get('confluence_score', 0)}/100, Pattern={analytical_report.get('chart_pattern', 'NONE')}, Trap Risk={analytical_report.get('trap_analysis', {}).get('trap_detected', False)}",
+            details={"current_price": current_price, "bias": analytical_report.get("bias"), "confluence": analytical_report.get("confluence_score", 0)}
+        )
+
         # Step 4: Active Trade Surveillance (Split-second early invalidations & emergent duration)
         active_strat = "DISCRETIONARY_SETUP"
         if self.system_state.get("open_positions"):
@@ -361,8 +454,17 @@ class CoreTradingAgent:
 
         # Feed any closed trade directly into Evolution Memory & Risk Agent!
         for ct in closed_trades:
+            pnl_val = float(ct.get("realized_pnl", 0.0))
             self.evolution_agent.log_trade_post_mortem(ct)
-            self.risk_agent.record_closed_trade(float(ct.get("realized_pnl", 0.0)))
+            self.risk_agent.record_closed_trade(pnl_val)
+            self.log_agent_activity(
+                agent_name="💰 Profit Realizer" if pnl_val >= 0 else "🛡️ Risk Cut Guard",
+                action_type="TRADE_EXIT",
+                symbol=ct.get("symbol", primary_symbol),
+                market=ct.get("market", active_market),
+                message=f"Closed position on {ct.get('symbol')}: {'+' if pnl_val >= 0 else ''}₹{pnl_val:,.2f} ({ct.get('exit_reason', 'STOP_LOSS')}). Post-mortem recorded into neural memory.",
+                details=ct
+            )
 
         # Step 5: Backtest Lab Screening with Bidirectional Evolution Memory Feedback
         lab_results = self.backtest_agent.run_continuous_backtest_lab(candles_df, market=active_market)
@@ -398,19 +500,41 @@ class CoreTradingAgent:
         )
 
         # Step 8: 15-Section Risk Management Shield Audit (with Depth 2/3 Trap & Intermarket Gates)
-        strat_dir = strategy_decision.get("direction") or ("SHORT" if strategy_decision.get("action") == "SELL" else "LONG")
+        strat_act = strategy_decision.get("recommended_action") or strategy_decision.get("action", "WAIT")
+        is_active_order = strat_act in ["BUY", "SELL", "ENTER_LONG", "ENTER_SHORT"]
+        strat_dir = "SHORT" if strat_act in ["SELL", "ENTER_SHORT"] else (strategy_decision.get("direction") or "LONG")
+        
         intermarket_implications = self.intermarket.get_cross_market_implications(
             market=active_market,
             direction=strat_dir
         )
 
+        # Robust pricing and structural geometry resolution
+        cur_close = float(candles_df.iloc[-1]["close"]) if not candles_df.empty else 100.0
+        entry_p = float(strategy_decision.get("entry_price") or analytical_report.get("suggested_entry") or cur_close)
+        raw_sl = float(strategy_decision.get("stop_loss") or analytical_report.get("suggested_sl") or 0.0)
+        raw_tp1 = float(strategy_decision.get("take_profit_1") or analytical_report.get("suggested_tp") or 0.0)
+        
+        atr_val = float(analytical_report.get("atr_volatility", {}).get("atr") or (entry_p * 0.015))
+        min_sl_dist = max(atr_val * 1.5, entry_p * 0.006)
+        
+        # Enforce strict geometric validity: Long SL < Entry < Long TP, Short TP < Entry < Short SL
+        if strat_dir == "LONG":
+            sl_price = raw_sl if (0 < raw_sl < entry_p) else round(entry_p - min_sl_dist, 2)
+            risk_dist = entry_p - sl_price
+            tp_price = raw_tp1 if (raw_tp1 > entry_p) else round(entry_p + (risk_dist * 2.0), 2)
+        else:
+            sl_price = raw_sl if (raw_sl > entry_p) else round(entry_p + min_sl_dist, 2)
+            risk_dist = sl_price - entry_p
+            tp_price = raw_tp1 if (0 < raw_tp1 < entry_p) else round(entry_p - (risk_dist * 2.0), 2)
+
         proposal = {
             "symbol": primary_symbol,
             "strategy_name": strat_name,
             "direction": strat_dir,
-            "entry_price": strategy_decision.get("entry_price") or analytical_report.get("suggested_entry"),
-            "stop_loss": strategy_decision.get("stop_loss") or analytical_report.get("suggested_sl"),
-            "take_profit_1": strategy_decision.get("take_profit_1") or analytical_report.get("suggested_tp"),
+            "entry_price": entry_p,
+            "stop_loss": sl_price,
+            "take_profit_1": tp_price,
             "take_profit_2": strategy_decision.get("take_profit_2"),
             "triple_historical_index": triple_edge.get("triple_historical_index", 50.0),
             "setup_score": strategy_decision.get("setup_score", 7.0),
@@ -423,14 +547,32 @@ class CoreTradingAgent:
             "intermarket_implications": intermarket_implications
         }
 
-        open_positions = self.execution_agent.get_open_positions_list()
-        risk_verdict = self.risk_agent.evaluate_trade_proposal(
-            proposal=proposal,
-            open_positions=open_positions,
-            candles_df=candles_df,
-            evolution_warnings=evolution_warnings,
-            is_high_impact_news_pending=False
+        self.log_agent_activity(
+            agent_name="🧬 Strategy R&D Lab",
+            action_type="ORDER_PROPOSAL" if is_active_order else "DEFENSE_WAIT",
+            symbol=primary_symbol,
+            market=active_market,
+            message=f"Strategy: {strat_name} | Action: {strat_act} | Setup Score: {strategy_decision.get('setup_score', 0)}/10. Entry: ₹{entry_p:,.2f}, SL: ₹{sl_price:,.2f}, TP1: ₹{tp_price:,.2f}",
+            details=proposal
         )
+
+        open_positions = self.execution_agent.get_open_positions_list()
+        if is_active_order:
+            risk_verdict = self.risk_agent.evaluate_trade_proposal(
+                proposal=proposal,
+                open_positions=open_positions,
+                candles_df=candles_df,
+                evolution_warnings=evolution_warnings,
+                is_high_impact_news_pending=False
+            )
+        else:
+            risk_verdict = {
+                "decision": "HOLD",
+                "risk_tier": "TACTICAL_STANDBY",
+                "reason": f"Strategy {strat_name} returned {strat_act}. Capital guarded in cash.",
+                "units": 0,
+                "risk_pct": 0.0
+            }
         self.system_state["latest_risk_verdict"] = risk_verdict
 
         # Step 9: CEO Supreme King Council Review & Conflict Arbitration
@@ -473,6 +615,24 @@ class CoreTradingAgent:
         )
         self.system_state["latest_ceo_verdict"] = ceo_approval
 
+        self.log_agent_activity(
+            agent_name="🛡️ 15-Section Risk Shield",
+            action_type="CIRCUIT_CHECK",
+            symbol=primary_symbol,
+            market=active_market,
+            message=f"Risk Decision: {risk_verdict.get('decision')} | {risk_verdict.get('reason')} (Units: {risk_verdict.get('units', 0)}, Risk: {risk_verdict.get('risk_pct', 0)}%)",
+            details=risk_verdict
+        )
+
+        self.log_agent_activity(
+            agent_name="👑 CEO Supreme King",
+            action_type="CIRCUIT_CHECK",
+            symbol=primary_symbol,
+            market=active_market,
+            message=f"CEO Arbitration: {ceo_approval.get('ceo_decision')} - Mandate: {ceo_approval.get('mandate')} (Approved for Execution: {ceo_approval.get('approved_for_execution')})",
+            details=ceo_approval
+        )
+
         # Step 10: Execution Sniper Order Entry (If approved by CEO & Risk)
         exec_result = {"status": "NO_ACTION"}
         if ceo_approval.get("approved_for_execution"):
@@ -489,6 +649,26 @@ class CoreTradingAgent:
                 analytical_report=analytical_report,
                 is_news_pending=False,
                 trading_mode=self.trading_mode
+            )
+
+        if exec_result.get("status") == "EXECUTED":
+            self.log_agent_activity(
+                agent_name="⚡ Execution Sniper",
+                action_type="ORDER_FILLED",
+                symbol=primary_symbol,
+                market=active_market,
+                message=f"🚀 DISPATCHED ORDER: {strat_dir} {primary_symbol} @ ₹{current_price:,.2f}. 3-Tier profit harvesting & trailing stop activated in {self.trading_mode} mode!",
+                details=exec_result.get("position", {})
+            )
+        elif not ceo_approval.get("approved_for_execution"):
+            wait_reason = ceo_approval.get("reason") or risk_verdict.get("reason") or "Confluence / Confirmation trigger threshold not reached"
+            self.log_agent_activity(
+                agent_name="⏳ Tactical Waiting",
+                action_type="DEFENSE_WAIT",
+                symbol=primary_symbol,
+                market=active_market,
+                message=f"Holding cash on {primary_symbol}: {wait_reason}. Capital preserved; agent army standing by for optimal trigger.",
+                details={"waiting_on": wait_reason}
             )
 
         # Step 11: Tick All Active Shadow Clones (Naruto Multi-Market Concurrency)

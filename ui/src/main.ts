@@ -548,10 +548,8 @@ installFetchFailureAttribution();
 installRuntimeFetchPatch();
 // In web production, route RPC calls through api.worldmonitor.app (Cloudflare edge).
 installWebApiRedirect();
-// Force-reload tabs running a stale bundle (catches the class of bug where
-// users keep a tab open across a wire-shape change). Skips when build-hash
-// is the 'dev' marker.
-installStaleBundleCheck();
+// Stale bundle checks are disabled for desktop quant terminal to prevent destructive reloads on minimize/maximize
+// installStaleBundleCheck();
 loadDesktopSecrets().catch(() => {});
 
 // Apply stored theme preference before app initialization (safety net for inline script)

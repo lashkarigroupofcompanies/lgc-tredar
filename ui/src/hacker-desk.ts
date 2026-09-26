@@ -203,7 +203,7 @@ export class HackerDeskController {
 
   // Analysis Screen State (with 3 Dedicated Mode Tabs)
   public activeAnalysisTab: 'POSITIONS' | 'HISTORY' | 'DEFENSIVE_REJECTIONS' = 'HISTORY';
-  public activeAnalysisMainTab: 'OVERVIEW' | 'MODE_SAFE' | 'MODE_MONEY_MAKER' | 'MODE_DANGEROUS' | 'MISSION_CONTROL' | 'EXECUTED_TRADES' | 'LLM_CONFIG' | 'RISK' | 'HEALTH' | 'LEARNING' | 'LOGS' = 'OVERVIEW';
+  public activeAnalysisMainTab: 'OVERVIEW' | 'MODE_SAFE' | 'MODE_MONEY_MAKER' | 'MODE_DANGEROUS' | 'MISSION_CONTROL' | 'EXECUTED_TRADES' | 'LLM_CONFIG' | 'RISK' | 'HEALTH' | 'LEARNING' | 'LOGS' = (localStorage.getItem('hk_active_analysis_tab') as any) || 'OVERVIEW';
   public activeGrowthFilterMarket: string = 'TOTAL';
   public livePositionsList: AnalysisPosition[] = [];
   public pastTradesList: AnalysisTrade[] = [];
@@ -211,6 +211,13 @@ export class HackerDeskController {
   public cachedRiskData: any = null;
   public cachedHealthData: any = null;
   public cachedSimpleLogs: any[] = [];
+  public cachedSimpleLogsResponse: any = null;
+  public activeSimpleLogsViewMode: 'ALL' | 'DAY_WISE' | 'TRADE_WISE' = 'ALL';
+  public activeSimpleLogsDateFilter: string = 'ALL';
+  public cachedDeepLogsResponse: any = null;
+  public activeDeepLogsCategory: string = 'ALL';
+  public activeDeepLogsMarket: string = 'ALL';
+  public deepLogsPollTimer: any = null;
   public cachedLlmConfig: any = null;
   public cachedTursoStatus: any = null;
   public isLlmEditMode: boolean = false;
@@ -233,6 +240,7 @@ export class HackerDeskController {
     this.initAnalysisScreen();
     this.initLearnAndRememberModal();
     this.initSimpleLogsDrawer();
+    this.initDeepLogsDrawer();
     this.initVersionChecker();
     this.initNetworkStatusMonitor();
     this.startStateSync();
@@ -322,6 +330,12 @@ export class HackerDeskController {
           <button class="hk-header-btn-plain" id="hkSimpleLogsBtn" title="View Trade Decisions & Actions in Simple Plain Language">
             <span>📜</span>
             <span>SIMPLE LOGS</span>
+          </button>
+
+          <!-- DEEP AGENT RADAR & ACTIVITY LOGS (User Request #3) -->
+          <button class="hk-header-btn-plain" id="hkDeepLogsBtn" title="Live Agent Army Mission Activity Feed & Chart Surveillance" style="border-color:rgba(0,242,254,0.4);color:#00f2fe;">
+            <span>🎯</span>
+            <span>AGENT RADAR LOGS</span>
           </button>
         </div>
 
@@ -829,7 +843,7 @@ export class HackerDeskController {
 
       <!-- SIMPLE LANGUAGE LOGS MODAL (User Request #2) -->
       <div id="hk-simple-logs-modal" class="hk-modal-overlay">
-        <div class="hk-confirm-box" style="width:680px;max-width:92vw;text-align:left;align-items:stretch;">
+        <div class="hk-confirm-box" style="width:720px;max-width:94vw;text-align:left;align-items:stretch;">
           <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #14281a;padding-bottom:10px;">
             <div style="display:flex;align-items:center;gap:8px;">
               <span style="font-size:18px;">📜</span>
@@ -839,10 +853,87 @@ export class HackerDeskController {
             </div>
             <button class="hk-modal-exit-btn" id="hkSimpleLogsExitBtn">✖</button>
           </div>
-          <div style="font-size:11px;color:#64748b;margin-top:4px;">
-            Decisions, risk checks, and trade orders translated into plain human terms.
+
+          <!-- Dual Filter Toolbar (View Modes + Date Filters) -->
+          <div class="hk-simple-filter-bar" id="hkModalSimpleLogFilterBar" style="margin-top:10px;">
+            <div class="hk-simple-filter-row">
+              <span class="hk-filter-label">VIEW:</span>
+              <button class="hk-log-filter-btn active" data-vmode="ALL">⚡ All Logs</button>
+              <button class="hk-log-filter-btn" data-vmode="DAY_WISE">📅 Day-Wise</button>
+              <button class="hk-log-filter-btn" data-vmode="TRADE_WISE">🎯 Trade-Wise Stories</button>
+            </div>
+            <div class="hk-simple-filter-row">
+              <span class="hk-filter-label">PERIOD:</span>
+              <button class="hk-log-date-btn active" data-dfilter="ALL">🌐 All-Time</button>
+              <button class="hk-log-date-btn" data-dfilter="TODAY">☀️ Today</button>
+              <button class="hk-log-date-btn" data-dfilter="YESTERDAY">⏮️ Yesterday</button>
+              <button class="hk-log-date-btn" data-dfilter="7D">🗓️ Last 7 Days</button>
+            </div>
           </div>
-          <div class="hk-simple-logs-container" id="hkSimpleLogsModalContent" style="max-height:420px;overflow-y:auto;">
+
+          <div class="hk-simple-logs-container" id="hkSimpleLogsModalContent" style="max-height:460px;overflow-y:auto;margin-top:8px;">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+
+      <!-- DEEP AGENT RADAR & ACTIVITY LOGS MODAL (User Request #3) -->
+      <div id="hk-deep-logs-modal" class="hk-modal-overlay">
+        <div class="hk-confirm-box" style="width:880px;max-width:96vw;text-align:left;align-items:stretch;">
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #14281a;padding-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:22px;">🎯</span>
+              <div>
+                <div style="font-family:var(--hk-font-mono);font-size:14px;font-weight:800;color:#00f2fe;display:flex;align-items:center;gap:8px;">
+                  <span>LIVE AGENT RADAR & EXECUTION FORENSICS</span>
+                  <span class="hk-live-pulse-badge">LIVE 3S REFRESH</span>
+                </div>
+                <div style="font-size:10px;color:#64748b;margin-top:2px;">
+                  Granular multi-agent chart visits, indicator formulas, order proposals, and tactical wait reasons
+                </div>
+              </div>
+            </div>
+            <button class="hk-modal-exit-btn" id="hkDeepLogsExitBtn">✖</button>
+          </div>
+
+          <!-- Real-Time Activity Banner -->
+          <div id="hkDeepLogsCurrentActivity" class="hk-deep-activity-banner">
+            <span class="hk-pulse-dot" style="background:#00f2fe;box-shadow:0 0 10px #00f2fe;width:10px;height:10px;"></span>
+            <div style="flex:1;">
+              <div style="font-size:10px;color:#38bdf8;font-weight:800;letter-spacing:0.5px;font-family:var(--hk-font-mono);">
+                WHAT THE AGENT ARMY IS DOING RIGHT NOW:
+              </div>
+              <div id="hkDeepLogsActivityText" style="font-size:12px;color:#f8fafc;font-weight:600;margin-top:2px;">
+                Connecting to live agent telemetry stream...
+              </div>
+            </div>
+          </div>
+
+          <!-- Deep Logs Filter Toolbar -->
+          <div class="hk-deep-filters-row">
+            <div class="hk-deep-filter-group" id="hkDeepCategoryFilters">
+              <button class="hk-deep-filter-btn active" data-cat="ALL">🌐 All Operations</button>
+              <button class="hk-deep-filter-btn" data-cat="CHART_VISIT">📊 Chart Visits</button>
+              <button class="hk-deep-filter-btn" data-cat="SETUP_EVAL">🧠 Setup Evals</button>
+              <button class="hk-deep-filter-btn" data-cat="ORDER_PROPOSAL">🎯 Proposals</button>
+              <button class="hk-deep-filter-btn" data-cat="ORDER_FILLED">🚀 Executed</button>
+              <button class="hk-deep-filter-btn" data-cat="DEFENSE_WAIT">⏳ Hold & Wait</button>
+              <button class="hk-deep-filter-btn" data-cat="TRADE_EXIT">🏁 Exits</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <select id="hkDeepMarketSelect" class="hk-deep-select">
+                <option value="ALL">All Markets</option>
+                <option value="INDIAN_STOCKS">Indian Stocks</option>
+                <option value="CRYPTO">Crypto</option>
+                <option value="FOREX">Forex</option>
+                <option value="COMMODITY">Commodity</option>
+              </select>
+              <button class="hk-deep-refresh-btn" id="hkDeepRefreshBtn" title="Instant Refresh">🔄 Refresh</button>
+            </div>
+          </div>
+
+          <!-- Container for deep logs -->
+          <div class="hk-deep-logs-container" id="hkDeepLogsModalContent" style="max-height:480px;overflow-y:auto;">
             <!-- Populated dynamically -->
           </div>
         </div>
@@ -2287,11 +2378,12 @@ export class HackerDeskController {
   private async loadAnalysisData(): Promise<void> {
     try {
       const q = `date_filter=${encodeURIComponent(this.activeAnalysisDateFilter)}&market_filter=${encodeURIComponent(this.activeAnalysisMarketFilter)}`;
+      const logQ = `date_filter=${encodeURIComponent(this.activeAnalysisDateFilter)}&view_mode=${encodeURIComponent(this.activeSimpleLogsViewMode || 'ALL')}`;
       const [resAna, resRisk, resHealth, resLogs] = await Promise.all([
         fetch(`/api/analysis?${q}`).catch(() => null),
         fetch('/api/risk-dashboard').catch(() => null),
         fetch('/api/agent-health').catch(() => null),
-        fetch('/api/simple-logs').catch(() => null)
+        fetch(`/api/simple-logs?${logQ}`).catch(() => null)
       ]);
 
       if (resRisk && resRisk.ok) {
@@ -2303,6 +2395,7 @@ export class HackerDeskController {
       if (resLogs && resLogs.ok) {
         const d = await resLogs.json();
         this.cachedSimpleLogs = d.logs || [];
+        this.cachedSimpleLogsResponse = d;
       }
       if (resAna && resAna.ok) {
         const data = await resAna.json();
@@ -2641,12 +2734,34 @@ export class HackerDeskController {
       });
     });
 
+    // Simple Logs View Mode & Date Filter buttons in Analysis Screen (Tab: LOGS)
+    body.querySelectorAll('.hk-tab-simple-vmode').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-vmode') as any;
+        if (mode) {
+          this.activeSimpleLogsViewMode = mode;
+          this.loadAnalysisData();
+        }
+      });
+    });
+    body.querySelectorAll('.hk-tab-simple-dfilter').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const d = btn.getAttribute('data-dfilter');
+        if (d) {
+          this.activeSimpleLogsDateFilter = d;
+          this.activeAnalysisDateFilter = d;
+          this.loadAnalysisData();
+        }
+      });
+    });
+
     // Sub-tab switching events
     body.querySelectorAll('.hk-ana-tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const tab = btn.getAttribute('data-tab') as any;
         if (tab) {
           this.activeAnalysisMainTab = tab;
+          try { localStorage.setItem('hk_active_analysis_tab', tab); } catch (_) {}
           this.renderAnalysisScreen(data);
         }
       });
@@ -2685,6 +2800,14 @@ export class HackerDeskController {
       const urlInput = document.getElementById('hkLlmUrlInput') as HTMLInputElement | null;
       const detectPill = document.getElementById('hkLlmDetectPill');
 
+      // Auto-restore draft API key from localStorage if user navigated away or minimized
+      try {
+        const draftKey = localStorage.getItem('hk_draft_llm_key');
+        if (keyInput && !keyInput.value && draftKey) {
+          keyInput.value = draftKey;
+        }
+      } catch (_) {}
+
       // Clickable quick preset chips to fill model name instantly
       document.querySelectorAll('.hk-llm-chip-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -2702,6 +2825,7 @@ export class HackerDeskController {
       // Auto-detect provider & latest flagship model when user pastes API key
       keyInput?.addEventListener('input', () => {
         const val = keyInput.value.trim();
+        try { localStorage.setItem('hk_draft_llm_key', val); } catch (_) {}
         if (providerSelect && (providerSelect.value === 'AUTO' || !providerSelect.value)) {
           if (val.startsWith('sk-ant-')) {
             providerSelect.value = 'ANTHROPIC';
@@ -2786,6 +2910,7 @@ export class HackerDeskController {
             })
           });
           if (resp.ok) {
+            try { localStorage.removeItem('hk_draft_llm_key'); } catch (_) {}
             this.isLlmEditMode = false;
             await this.fetchLlmConfig();
             this.renderAnalysisScreen(data);
@@ -2893,11 +3018,11 @@ export class HackerDeskController {
     const netPnl = mp.total_pnl || 0.0;
     const isPnlPos = netPnl >= 0;
     const winRate = mp.win_rate !== undefined ? mp.win_rate : 0.0;
-    const totalTrades = mp.total_trades || (mp.closed_trades ? mp.closed_trades.length : 0);
-    const winCount = mp.winning_trades || 0;
-    const lossCount = mp.losing_trades || 0;
-    const openPositions: AnalysisPosition[] = mp.open_positions || [];
-    const closedTrades: AnalysisTrade[] = mp.closed_trades || [];
+    const closedTrades: AnalysisTrade[] = mp.closed_trades || mp.trades_list || [];
+    const openPositions: AnalysisPosition[] = mp.open_positions_list || (Array.isArray(mp.open_positions) ? mp.open_positions : []);
+    const totalTrades = mp.total_trades || closedTrades.length;
+    const winCount = mp.winning_trades !== undefined ? mp.winning_trades : closedTrades.filter(t => (t.pnl || t.realized_pnl || 0) > 0).length;
+    const lossCount = mp.losing_trades !== undefined ? mp.losing_trades : closedTrades.filter(t => (t.pnl || t.realized_pnl || 0) <= 0).length;
     const learnedPoints = mp.neural_learning_points || (totalTrades * 25);
 
     // Render Mode Specific Equity Curve
@@ -3062,6 +3187,52 @@ export class HackerDeskController {
               }).join('')}
             </svg>
           </div>
+        <!-- Shared Brain Neural Defense & Mistake Shield Panel (Same Brain Across All Modes) -->
+        <div class="hk-table-card" style="border:1px solid #1e3a5f;background:linear-gradient(180deg,#0a1320,#050b12);padding:14px 18px;border-radius:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:22px;">🧠</span>
+              <div>
+                <span style="font-family:var(--hk-font-mono);font-size:13px;font-weight:900;color:#00f2fe;letter-spacing:0.5px;">
+                  SHARED BRAIN DEFENSE MATRIX (SAME BRAIN ARCHITECTURE)
+                </span>
+                <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+                  Dangerous Mode trades fast to learn fast • Every win/loss updates the universal neural ledger • Mistake guards prevent repeat errors across ALL modes
+                </div>
+              </div>
+            </div>
+            <div style="font-family:var(--hk-font-mono);font-size:11px;background:#0d233a;border:1px solid #00f2fe;color:#00f2fe;padding:4px 10px;border-radius:6px;font-weight:700;">
+              🛡️ ${(data.evolution?.shared_brain_mistakes_prevented !== undefined ? data.evolution.shared_brain_mistakes_prevented : (data.evolution?.learned_mistakes || []).length)} MISTAKES SHIELDED
+            </div>
+          </div>
+
+          ${(data.evolution?.learned_mistakes && data.evolution.learned_mistakes.length > 0) ? `
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              ${data.evolution.learned_mistakes.slice(-3).reverse().map((m: any) => `
+                <div style="background:#09121c;border-left:3px solid #ff3366;padding:8px 12px;border-radius:4px;display:flex;align-items:flex-start;justify-content:space-between;font-size:11px;font-family:var(--hk-font-mono);">
+                  <div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <span style="color:#ff3366;font-weight:900;">🚨 RECENT MISTAKE CAPTURED:</span>
+                      <strong style="color:#ffffff;">${m.market || 'CRYPTO'}:${m.symbol}</strong>
+                      <span style="color:#94a3b8;">(${m.trading_mode || 'DANGEROUS'} Mode)</span>
+                      <span style="color:#ff3366;">-₹${Number(m.loss_amount || 0).toLocaleString('en-IN')}</span>
+                      <span style="color:#64748b;font-size:10px;">Exit: ${m.exit_reason || 'STOP_LOSS'}</span>
+                    </div>
+                    <div style="color:#00ff66;margin-top:4px;">
+                      💡 <strong>Lesson Learned:</strong> ${m.lesson || 'Position structure invalidated. Tighten entry confirmation.'}
+                    </div>
+                  </div>
+                  <span style="color:#00f2fe;font-size:10px;white-space:nowrap;background:rgba(0,242,254,0.1);padding:2px 6px;border-radius:4px;">
+                    🛡️ VETO ACTIVE FOR ALL MODES
+                  </span>
+                </div>
+              `).join('')}
+            </div>
+          ` : `
+            <div style="padding:10px 14px;background:#09121c;border-radius:6px;color:#94a3b8;font-size:11px;font-family:var(--hk-font-mono);">
+              ✨ Shared Brain pristine: No repeat mistake risk active. Fast learning armed across 1m/5m cycles.
+            </div>
+          `}
         </div>
 
         <!-- Mode Positions & Trade History Table -->
@@ -4662,6 +4833,35 @@ export class HackerDeskController {
           </div>
         </div>
 
+        <!-- Period Execution & Radar Scope Bar (Reflecting "7D", "Today", etc.) -->
+        <div class="hk-mc-period-strip">
+          <div class="hk-mc-period-left">
+            <span style="font-size:18px;">⏱️</span>
+            <div>
+              <div class="hk-mc-period-title">FILTERED HORIZON: <strong style="color:#00ff66;">${mc.period_label || this.activeAnalysisDateFilter}</strong></div>
+              <div class="hk-mc-period-market">MARKET UNIVERSE: <strong style="color:#38bdf8;">${this.activeAnalysisMarketFilter === 'ALL' ? 'ALL ASSETS' : this.activeAnalysisMarketFilter}</strong></div>
+            </div>
+          </div>
+          <div class="hk-mc-period-stats">
+            <div class="hk-mc-period-stat-card">
+              <span class="hk-mc-p-label">PERIOD EXECUTIONS</span>
+              <span class="hk-mc-p-val">${mc.period_trades_count !== undefined ? mc.period_trades_count : (data.summary?.total_trades || 0)}</span>
+            </div>
+            <div class="hk-mc-period-stat-card">
+              <span class="hk-mc-p-label">PERIOD P&L</span>
+              <span class="hk-mc-p-val ${Number(mc.period_pnl || 0) >= 0 ? 'green' : 'red'}">${Number(mc.period_pnl || 0) >= 0 ? '+' : ''}${cur}${Number(mc.period_pnl || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div class="hk-mc-period-stat-card">
+              <span class="hk-mc-p-label">PERIOD WIN RATE</span>
+              <span class="hk-mc-p-val ${Number(mc.period_win_rate || 0) >= 60 ? 'green' : (Number(mc.period_win_rate || 0) >= 45 ? 'amber' : 'red')}">${mc.period_win_rate !== undefined ? mc.period_win_rate : 0.0}%</span>
+            </div>
+            <div class="hk-mc-period-stat-card">
+              <span class="hk-mc-p-label">WINS / LOSSES</span>
+              <span class="hk-mc-p-val" style="color:#94a3b8;">${mc.period_wins || 0}W / ${mc.period_losses || 0}L</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 6-Agent Real-Time Telemetry Grid -->
         <div class="hk-mc-agent-grid">
           ${agents.map((a: any) => `
@@ -4694,7 +4894,7 @@ export class HackerDeskController {
               <span>LIVE CANDIDATE RADAR (Why Setups Trigger or Wait)</span>
             </div>
             <div style="font-size:11px;color:#64748b;">
-              Scanned Candidates: <strong style="color:#38bdf8;">${radar.length} Tickers</strong> • Scanned Every 20 Seconds
+              Scanned Candidates: <strong style="color:#38bdf8;">${radar.length} Tickers</strong> in <strong style="color:#00ff66;">${this.activeAnalysisMarketFilter}</strong> • Horizon: <strong style="color:#00f2fe;">${mc.period_label || this.activeAnalysisDateFilter}</strong>
             </div>
           </div>
           <div class="hk-radar-table-wrap">
@@ -4860,50 +5060,159 @@ export class HackerDeskController {
 
   // --- Simple Language Logs Section (User Request #2) ---
   private renderSimpleLogsSection(): string {
-    const logs = this.cachedSimpleLogs && this.cachedSimpleLogs.length > 0 ? this.cachedSimpleLogs : [
-      {
-        id: '1',
-        agent: '👑 CEO King Agent',
-        time: 'Just now',
-        type: 'SUCCESS',
-        title: 'Trading Collective Active',
-        description: 'All 7 agents are scanning live charts for high-probability setups. Risk shields are armed.'
-      },
-      {
-        id: '2',
-        agent: '🛡️ Risk Management Agent',
-        time: '5m ago',
-        type: 'INFO',
-        title: 'Account Safety Check Passed',
-        description: 'Your account balance is safe. Risk per trade is dynamically adapted by AI (0.25% - 3.0%) based on market conditions, with a 4.0% daily circuit breaker.'
-      },
-      {
-        id: '3',
-        agent: '📈 Market Analytical Agent',
-        time: '10m ago',
-        type: 'INFO',
-        title: 'Smart Money Structure Detected',
-        description: 'Spotted an order block pullback on Reliance with institutional buying volume.'
-      }
-    ];
+    const rawLogs = this.cachedSimpleLogs && this.cachedSimpleLogs.length > 0 ? this.cachedSimpleLogs : [];
+    const resp = this.cachedSimpleLogsResponse || {};
+    const byDay = resp.by_day || [];
+    const byTrade = resp.by_trade || [];
+    const curVMode = this.activeSimpleLogsViewMode || 'ALL';
+    const curDFilter = this.activeSimpleLogsDateFilter || 'ALL';
 
     return `
-      <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
-        <div style="font-family:var(--hk-font-mono);font-size:12px;color:#64748b;">
-          Every agent decision, safety check, and execution explained in simple conversational language:
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px;">
+        <!-- View Mode Toolbar (Period controlled by top master filter console) -->
+        <div class="hk-simple-filter-bar">
+          <div class="hk-simple-filter-row">
+            <span class="hk-filter-label">LOG VIEW:</span>
+            <button class="hk-tab-simple-vmode ${curVMode === 'ALL' ? 'active' : ''}" data-vmode="ALL">⚡ All Logs (${rawLogs.length})</button>
+            <button class="hk-tab-simple-vmode ${curVMode === 'DAY_WISE' ? 'active' : ''}" data-vmode="DAY_WISE">📅 Day-Wise Breakdown (${byDay.length} Days)</button>
+            <button class="hk-tab-simple-vmode ${curVMode === 'TRADE_WISE' ? 'active' : ''}" data-vmode="TRADE_WISE">🎯 Trade Stories (${byTrade.length} Trades)</button>
+          </div>
         </div>
-        <div class="hk-simple-logs-container">
-          ${logs.map((l: any) => `
-            <div class="hk-simple-log-card ${l.type || 'INFO'}">
-              <div class="hk-log-card-header">
-                <span class="hk-log-agent">${l.agent}</span>
-                <span class="hk-log-time">${l.time}</span>
+
+        <div style="font-family:var(--hk-font-mono);font-size:11px;color:#64748b;">
+          Active View: <strong style="color:#00ff66;">${curVMode}</strong> • Selected Period: <strong style="color:#00f2fe;">${this.activeAnalysisDateFilter || 'ALL'}</strong> • Conversational explanations of every market decision
+        </div>
+
+        <!-- Render Content -->
+        <div class="hk-simple-logs-view-wrapper">
+          ${this.renderSimpleLogsContentHtml(rawLogs, byDay, byTrade, curVMode)}
+        </div>
+      </div>
+    `;
+  }
+
+  private renderSimpleLogsContentHtml(rawLogs: any[], byDay: any[], byTrade: any[], vmode: string): string {
+    if (vmode === 'DAY_WISE') {
+      if (!byDay || byDay.length === 0) {
+        return `<div class="hk-empty-logs" style="padding:32px;text-align:center;color:#64748b;">No day-wise grouped trades found for this period. Try switching to 'All-Time' or 'All Logs'.</div>`;
+      }
+      return `
+        <div class="hk-day-groups-container" style="display:flex;flex-direction:column;gap:14px;">
+          ${byDay.map(d => `
+            <div class="hk-day-group">
+              <div class="hk-day-header">
+                <div class="hk-day-title">
+                  <span>📅</span> <strong>${d.date_display || d.date}</strong>
+                </div>
+                <div class="hk-day-badges">
+                  <span class="hk-pnl-pill ${d.net_pnl >= 0 ? 'pos' : 'neg'}">
+                    ${d.net_pnl >= 0 ? '+' : ''}₹${Number(d.net_pnl).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <span class="hk-stats-pill">${d.trades_count} Trades (${d.wins}W / ${d.losses}L)</span>
+                </div>
               </div>
-              <div class="hk-log-card-title">${l.title}</div>
-              <div class="hk-log-card-desc">${l.description}</div>
+              <div class="hk-day-logs" style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+                ${(d.logs || []).map((l: any) => `
+                  <div class="hk-simple-log-card ${l.type || 'INFO'}">
+                    <div class="hk-log-card-header">
+                      <span class="hk-log-agent">${l.agent}</span>
+                      <span class="hk-log-time">${l.time}</span>
+                    </div>
+                    <div class="hk-log-card-title">${l.title}</div>
+                    <div class="hk-log-card-desc">${l.description}</div>
+                  </div>
+                `).join('')}
+              </div>
             </div>
           `).join('')}
         </div>
+      `;
+    }
+
+    if (vmode === 'TRADE_WISE') {
+      if (!byTrade || byTrade.length === 0) {
+        return `<div class="hk-empty-logs" style="padding:32px;text-align:center;color:#64748b;">No trade story logs found for this period. Try switching to 'All-Time'.</div>`;
+      }
+      return `
+        <div class="hk-trade-stories-container" style="display:flex;flex-direction:column;gap:14px;">
+          ${byTrade.map(t => {
+            const isWin = t.is_win || (t.pnl || 0) > 0;
+            const pnlVal = Number(t.pnl || 0);
+            return `
+              <div class="hk-trade-story-card ${isWin ? 'win' : (pnlVal < 0 ? 'loss' : 'open')}">
+                <div class="hk-story-header">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <span style="font-weight:800;font-size:15px;color:#f8fafc;font-family:var(--hk-font-mono);">${t.symbol}</span>
+                    <span class="hk-badge-market">${t.market || 'CRYPTO'}</span>
+                    <span class="hk-badge-mode ${(t.trading_mode || 'SAFE').toLowerCase()}">${t.trading_mode || 'SAFE'}</span>
+                    <span class="hk-badge-side ${(t.side || 'BUY').toLowerCase()}">${t.side || 'BUY'}</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="hk-pnl-pill ${pnlVal >= 0 ? 'pos' : 'neg'}">
+                      ${pnlVal >= 0 ? '+' : ''}₹${pnlVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span class="hk-outcome-pill ${isWin ? 'win' : (pnlVal < 0 ? 'loss' : 'open')}">
+                      ${t.outcome || (isWin ? 'WIN' : 'LOSS')}
+                    </span>
+                  </div>
+                </div>
+                <div class="hk-story-narrative">
+                  ${t.story}
+                </div>
+                <!-- 4-Stage Execution Timeline -->
+                <div class="hk-story-timeline">
+                  <div class="hk-timeline-step">
+                    <span class="hk-step-dot done"></span>
+                    <div class="hk-step-content">
+                      <div class="hk-step-name">1. Sniper Entry</div>
+                      <div class="hk-step-detail">Filled @ ₹${t.entry_price || '--'}</div>
+                    </div>
+                  </div>
+                  <div class="hk-timeline-step">
+                    <span class="hk-step-dot done"></span>
+                    <div class="hk-step-content">
+                      <div class="hk-step-name">2. Risk Shield</div>
+                      <div class="hk-step-detail">SL: ₹${t.stop_loss || '--'} • Dynamic Trailing Armed</div>
+                    </div>
+                  </div>
+                  <div class="hk-timeline-step">
+                    <span class="hk-step-dot ${t.is_closed ? 'done' : 'active'}"></span>
+                    <div class="hk-step-content">
+                      <div class="hk-step-name">3. Exit / Close</div>
+                      <div class="hk-step-detail">${t.is_closed ? `Exit @ ₹${t.exit_price || '--'}` : 'Position Currently Live'}</div>
+                    </div>
+                  </div>
+                  <div class="hk-timeline-step">
+                    <span class="hk-step-dot done"></span>
+                    <div class="hk-step-content">
+                      <div class="hk-step-name">4. Neural Retention</div>
+                      <div class="hk-step-detail">+25 Experience Points Persisted to Brain</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    // Default: 'ALL'
+    if (!rawLogs || rawLogs.length === 0) {
+      return `<div class="hk-empty-logs" style="padding:32px;text-align:center;color:#64748b;">No plain logs found matching this filter criteria.</div>`;
+    }
+    return `
+      <div class="hk-simple-logs-container" style="display:flex;flex-direction:column;gap:8px;">
+        ${rawLogs.map((l: any) => `
+          <div class="hk-simple-log-card ${l.type || 'INFO'}">
+            <div class="hk-log-card-header">
+              <span class="hk-log-agent">${l.agent}</span>
+              <span class="hk-log-time">${l.time}</span>
+            </div>
+            <div class="hk-log-card-title">${l.title}</div>
+            <div class="hk-log-card-desc">${l.description}</div>
+          </div>
+        `).join('')}
       </div>
     `;
   }
@@ -5010,38 +5319,177 @@ export class HackerDeskController {
     const simpleLogsBtn = document.getElementById('hkSimpleLogsBtn');
     const modal = document.getElementById('hk-simple-logs-modal');
     const exitBtn = document.getElementById('hkSimpleLogsExitBtn');
+    const filterBar = document.getElementById('hkModalSimpleLogFilterBar');
 
-    simpleLogsBtn?.addEventListener('click', async () => {
-      if (modal) modal.classList.add('open');
+    const fetchAndRenderSimpleModalLogs = async () => {
       const content = document.getElementById('hkSimpleLogsModalContent');
-      if (content) {
-        content.innerHTML = `<div style="padding:20px;text-align:center;color:#64748b;">Loading simple trade logs...</div>`;
+      if (content && !this.cachedSimpleLogsResponse) {
+        content.innerHTML = `<div style="padding:24px;text-align:center;color:#64748b;">Loading simple logs...</div>`;
       }
       try {
-        const res = await fetch('/api/simple-logs');
+        const q = `view_mode=${encodeURIComponent(this.activeSimpleLogsViewMode || 'ALL')}&date_filter=${encodeURIComponent(this.activeSimpleLogsDateFilter || 'ALL')}`;
+        const res = await fetch(`/api/simple-logs?${q}`);
         if (res.ok) {
           const d = await res.json();
           this.cachedSimpleLogs = d.logs || [];
+          this.cachedSimpleLogsResponse = d;
           if (content) {
-            content.innerHTML = this.cachedSimpleLogs.map((l: any) => `
-              <div class="hk-simple-log-card ${l.type || 'INFO'}">
-                <div class="hk-log-card-header">
-                  <span class="hk-log-agent">${l.agent}</span>
-                  <span class="hk-log-time">${l.time}</span>
-                </div>
-                <div class="hk-log-card-title">${l.title}</div>
-                <div class="hk-log-card-desc">${l.description}</div>
-              </div>
-            `).join('');
+            content.innerHTML = this.renderSimpleLogsContentHtml(d.logs || [], d.by_day || [], d.by_trade || [], this.activeSimpleLogsViewMode || 'ALL');
           }
         }
       } catch (e) {
         console.error('[HackerDesk] Could not fetch simple logs:', e);
       }
+    };
+
+    filterBar?.querySelectorAll('.hk-log-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterBar.querySelectorAll('.hk-log-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const vmode = btn.getAttribute('data-vmode');
+        if (vmode) {
+          this.activeSimpleLogsViewMode = vmode;
+          fetchAndRenderSimpleModalLogs();
+        }
+      });
+    });
+
+    filterBar?.querySelectorAll('.hk-log-date-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterBar.querySelectorAll('.hk-log-date-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const dfilter = btn.getAttribute('data-dfilter');
+        if (dfilter) {
+          this.activeSimpleLogsDateFilter = dfilter;
+          this.activeAnalysisDateFilter = dfilter;
+          fetchAndRenderSimpleModalLogs();
+        }
+      });
+    });
+
+    simpleLogsBtn?.addEventListener('click', () => {
+      if (modal) modal.classList.add('open');
+      fetchAndRenderSimpleModalLogs();
     });
 
     exitBtn?.addEventListener('click', () => {
       if (modal) modal.classList.remove('open');
+    });
+  }
+
+  // --- Deep Agent Radar & Execution Forensics Drawer (User Request #3) ---
+  private initDeepLogsDrawer(): void {
+    const deepLogsBtn = document.getElementById('hkDeepLogsBtn');
+    const modal = document.getElementById('hk-deep-logs-modal');
+    const exitBtn = document.getElementById('hkDeepLogsExitBtn');
+    const refreshBtn = document.getElementById('hkDeepRefreshBtn');
+    const mktSelect = document.getElementById('hkDeepMarketSelect') as HTMLSelectElement | null;
+    const catContainer = document.getElementById('hkDeepCategoryFilters');
+
+    const fetchAndRenderDeepLogs = async (isBackground = false) => {
+      const content = document.getElementById('hkDeepLogsModalContent');
+      const actText = document.getElementById('hkDeepLogsActivityText');
+      if (content && !isBackground && (!this.cachedDeepLogsResponse || !this.cachedDeepLogsResponse.logs?.length)) {
+        content.innerHTML = `<div style="padding:28px;text-align:center;color:#64748b;">Connecting to live deep agent telemetry stream...</div>`;
+      }
+
+      try {
+        const q = `category=${encodeURIComponent(this.activeDeepLogsCategory || 'ALL')}&market=${encodeURIComponent(this.activeDeepLogsMarket || 'ALL')}&limit=100`;
+        const res = await fetch(`/api/deep-activity-logs?${q}`);
+        if (res.ok) {
+          const d = await res.json();
+          this.cachedDeepLogsResponse = d;
+
+          if (actText && d.current_activity) {
+            actText.textContent = d.current_activity;
+          }
+
+          if (content) {
+            const logs: any[] = d.logs || [];
+            if (logs.length === 0) {
+              content.innerHTML = `
+                <div style="padding:40px;text-align:center;color:#64748b;font-family:var(--hk-font-mono);">
+                  No activity logs matching category "${this.activeDeepLogsCategory}" and market "${this.activeDeepLogsMarket}".
+                  <div style="margin-top:6px;font-size:11px;color:#00ff66;">Agent fleet is actively scanning background cycles.</div>
+                </div>
+              `;
+            } else {
+              content.innerHTML = logs.map(l => {
+                const badgeClass = (l.action_type || 'INFO').toLowerCase();
+                const hasDetails = l.details && Object.keys(l.details).length > 0;
+                return `
+                  <div class="hk-deep-log-card action-${badgeClass}">
+                    <div class="hk-deep-log-header">
+                      <div class="hk-deep-log-meta-left">
+                        <span class="hk-deep-action-badge ${badgeClass}">${l.action_type || 'INFO'}</span>
+                        <span class="hk-deep-agent-tag">${l.agent_name || 'Agent'}</span>
+                        ${l.symbol ? `<span class="hk-deep-symbol-tag">${l.symbol}</span>` : ''}
+                        ${l.market && l.market !== 'ALL' ? `<span class="hk-deep-mkt-tag">${l.market}</span>` : ''}
+                      </div>
+                      <span class="hk-deep-time">${l.time || 'JUST NOW'}</span>
+                    </div>
+                    <div class="hk-deep-log-msg">${l.message || ''}</div>
+                    ${hasDetails ? `
+                      <details class="hk-deep-details-expander">
+                        <summary>Technical Forensics & Confluence Metrics</summary>
+                        <pre class="hk-deep-details-code">${JSON.stringify(l.details, null, 2)}</pre>
+                      </details>
+                    ` : ''}
+                  </div>
+                `;
+              }).join('');
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[HackerDesk] Could not fetch deep activity logs:', e);
+      }
+    };
+
+    deepLogsBtn?.addEventListener('click', () => {
+      if (modal) modal.classList.add('open');
+      fetchAndRenderDeepLogs();
+
+      if (this.deepLogsPollTimer) clearInterval(this.deepLogsPollTimer);
+      this.deepLogsPollTimer = setInterval(() => {
+        if (modal?.classList.contains('open')) {
+          fetchAndRenderDeepLogs(true);
+        } else {
+          if (this.deepLogsPollTimer) clearInterval(this.deepLogsPollTimer);
+          this.deepLogsPollTimer = null;
+        }
+      }, 3000);
+    });
+
+    exitBtn?.addEventListener('click', () => {
+      if (modal) modal.classList.remove('open');
+      if (this.deepLogsPollTimer) {
+        clearInterval(this.deepLogsPollTimer);
+        this.deepLogsPollTimer = null;
+      }
+    });
+
+    catContainer?.querySelectorAll('.hk-deep-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        catContainer.querySelectorAll('.hk-deep-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const cat = btn.getAttribute('data-cat');
+        if (cat) {
+          this.activeDeepLogsCategory = cat;
+          fetchAndRenderDeepLogs();
+        }
+      });
+    });
+
+    mktSelect?.addEventListener('change', () => {
+      if (mktSelect) {
+        this.activeDeepLogsMarket = mktSelect.value;
+        fetchAndRenderDeepLogs();
+      }
+    });
+
+    refreshBtn?.addEventListener('click', () => {
+      fetchAndRenderDeepLogs();
     });
   }
 

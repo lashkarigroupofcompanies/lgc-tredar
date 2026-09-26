@@ -3627,3 +3627,619 @@ body.hacker-night-mode {
 .hk-mode-synergy-banner strong {
   color: #00ff66;
 }
+
+/* ==========================================================================
+   MISSION CONTROL PERIOD & HORIZON BAR
+   ========================================================================== */
+.hk-mc-period-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, rgba(8, 20, 32, 0.95), rgba(4, 12, 20, 0.98));
+  border: 1px solid rgba(0, 242, 254, 0.3);
+  border-radius: 8px;
+  padding: 12px 18px;
+  margin-top: 12px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.hk-mc-period-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hk-mc-period-title {
+  font-family: var(--hk-font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  color: #f1f5f9;
+}
+
+.hk-mc-period-market {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.hk-mc-period-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hk-mc-period-stat-card {
+  background: rgba(14, 28, 44, 0.6);
+  border: 1px solid rgba(0, 255, 102, 0.2);
+  border-radius: 6px;
+  padding: 6px 14px;
+  display: flex;
+  flex-direction: column;
+  min-width: 90px;
+  text-align: center;
+}
+
+.hk-mc-p-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.05em;
+  font-family: var(--hk-font-mono);
+}
+
+.hk-mc-p-val {
+  font-family: var(--hk-font-mono);
+  font-size: 14px;
+  font-weight: 800;
+  color: #f8fafc;
+  margin-top: 2px;
+}
+
+.hk-mc-p-val.green { color: #00ff66; }
+.hk-mc-p-val.red { color: #ff3366; }
+.hk-mc-p-val.amber { color: #ffaa00; }
+
+/* ==========================================================================
+   SIMPLE LOGS MULTI-VIEW & FILTER TOOLBARS
+   ========================================================================== */
+.hk-simple-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(4, 9, 14, 0.9);
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.hk-simple-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hk-modal-filter-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #04090e;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.hk-modal-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hk-filter-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #64748b;
+  font-family: var(--hk-font-mono);
+  min-width: 75px;
+}
+
+.hk-tab-simple-vmode,
+.hk-tab-simple-dfilter,
+.hk-log-filter-btn,
+.hk-log-date-btn {
+  background: rgba(14, 28, 44, 0.5);
+  border: 1px solid #1e3a29;
+  border-radius: 6px;
+  color: #94a3b8;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-family: var(--hk-font-mono);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.hk-tab-simple-vmode:hover,
+.hk-tab-simple-dfilter:hover,
+.hk-log-filter-btn:hover,
+.hk-log-date-btn:hover {
+  border-color: #00ff66;
+  color: #f1f5f9;
+}
+
+.hk-tab-simple-vmode.active,
+.hk-tab-simple-dfilter.active,
+.hk-log-filter-btn.active,
+.hk-log-date-btn.active {
+  background: rgba(0, 255, 102, 0.15);
+  border-color: #00ff66;
+  color: #00ff66;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.2);
+}
+
+/* ==========================================================================
+   DAY-WISE BREAKDOWN STYLES
+   ========================================================================== */
+.hk-day-group {
+  background: rgba(4, 9, 14, 0.85);
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.hk-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(20, 40, 26, 0.8);
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+
+.hk-day-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #f8fafc;
+  font-family: var(--hk-font-mono);
+}
+
+.hk-day-badges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hk-pnl-pill {
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-family: var(--hk-font-mono);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.hk-pnl-pill.pos {
+  background: rgba(0, 255, 102, 0.15);
+  border: 1px solid #00ff66;
+  color: #00ff66;
+}
+
+.hk-pnl-pill.neg {
+  background: rgba(255, 34, 85, 0.15);
+  border: 1px solid #ff3366;
+  color: #ff3366;
+}
+
+.hk-stats-pill {
+  background: rgba(14, 28, 44, 0.6);
+  border: 1px solid #1e3a29;
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: #94a3b8;
+  font-family: var(--hk-font-mono);
+}
+
+/* ==========================================================================
+   TRADE STORIES & 4-STAGE TIMELINE
+   ========================================================================== */
+.hk-trade-story-card {
+  background: rgba(4, 9, 14, 0.9);
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hk-trade-story-card.win {
+  border-left: 4px solid #00ff66;
+}
+
+.hk-trade-story-card.loss {
+  border-left: 4px solid #ff3366;
+}
+
+.hk-trade-story-card.open {
+  border-left: 4px solid #00f2fe;
+}
+
+.hk-story-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hk-story-narrative {
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.6;
+  background: rgba(14, 28, 44, 0.4);
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(20, 40, 26, 0.6);
+}
+
+.hk-story-timeline {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 4px;
+}
+
+@media (max-width: 768px) {
+  .hk-story-timeline {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.hk-timeline-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(4, 9, 14, 0.6);
+  border: 1px solid #14281a;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.hk-step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.hk-step-dot.done {
+  background: #00ff66;
+  box-shadow: 0 0 6px rgba(0, 255, 102, 0.6);
+}
+
+.hk-step-dot.active {
+  background: #00f2fe;
+  box-shadow: 0 0 6px rgba(0, 242, 254, 0.6);
+  animation: hkPulse 1.5s infinite;
+}
+
+.hk-step-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.hk-step-name {
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  color: #00ff66;
+}
+
+.hk-step-detail {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.hk-badge-market,
+.hk-badge-mode,
+.hk-badge-side {
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.hk-badge-market {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.hk-badge-mode.dangerous {
+  background: rgba(255, 34, 85, 0.2);
+  color: #ff4d6d;
+  border: 1px solid #ff2255;
+}
+
+.hk-badge-mode.safe {
+  background: rgba(0, 255, 102, 0.15);
+  color: #00ff66;
+  border: 1px solid #00ff66;
+}
+
+.hk-badge-mode.money_maker {
+  background: rgba(255, 170, 0, 0.15);
+  color: #ffaa00;
+  border: 1px solid #ffaa00;
+}
+
+.hk-badge-side.buy {
+  background: rgba(0, 255, 102, 0.15);
+  color: #00ff66;
+}
+
+.hk-badge-side.sell {
+  background: rgba(255, 34, 85, 0.15);
+  color: #ff3366;
+}
+
+.hk-outcome-pill {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.hk-outcome-pill.win {
+  background: rgba(0, 255, 102, 0.2);
+  color: #00ff66;
+  border: 1px solid #00ff66;
+}
+
+.hk-outcome-pill.loss {
+  background: rgba(255, 34, 85, 0.2);
+  color: #ff3366;
+  border: 1px solid #ff3366;
+}
+
+.hk-outcome-pill.open {
+  background: rgba(0, 242, 254, 0.2);
+  color: #00f2fe;
+  border: 1px solid #00f2fe;
+}
+
+/* ==========================================================================
+   DEEP TELEMETRY & LIVE ACTION LOG DRAWER
+   ========================================================================== */
+.hk-deep-activity-banner {
+  background: linear-gradient(135deg, rgba(8, 20, 32, 0.95), rgba(4, 9, 14, 0.98));
+  border: 1px solid rgba(0, 242, 254, 0.3);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.hk-deep-banner-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--hk-font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  color: #f1f5f9;
+}
+
+.hk-deep-banner-desc {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.hk-deep-filters-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #04090e;
+  border: 1px solid #14281a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.hk-deep-filter-btn {
+  background: rgba(14, 28, 44, 0.5);
+  border: 1px solid #1e3a29;
+  border-radius: 6px;
+  color: #94a3b8;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-family: var(--hk-font-mono);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.hk-deep-filter-btn:hover {
+  border-color: #00f2fe;
+  color: #f8fafc;
+}
+
+.hk-deep-filter-btn.active {
+  background: rgba(0, 242, 254, 0.15);
+  border-color: #00f2fe;
+  color: #00f2fe;
+  font-weight: 700;
+}
+
+.hk-deep-log-card {
+  background: rgba(4, 9, 14, 0.85);
+  border: 1px solid #14281a;
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.hk-deep-log-card.action-chart_visit {
+  border-left: 3px solid #38bdf8;
+}
+
+.hk-deep-log-card.action-setup_eval {
+  border-left: 3px solid #ffaa00;
+}
+
+.hk-deep-log-card.action-order_proposal {
+  border-left: 3px solid #a855f7;
+}
+
+.hk-deep-log-card.action-order_filled {
+  border-left: 3px solid #00ff66;
+  background: rgba(0, 255, 102, 0.04);
+}
+
+.hk-deep-log-card.action-defense_wait {
+  border-left: 3px solid #f97316;
+}
+
+.hk-deep-log-card.action-trade_exit {
+  border-left: 3px solid #e11d48;
+}
+
+.hk-deep-log-card.action-circuit_check {
+  border-left: 3px solid #06b6d4;
+}
+
+.hk-deep-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hk-deep-log-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hk-deep-action-badge {
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.hk-deep-action-badge.chart_visit {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid #38bdf8;
+}
+
+.hk-deep-action-badge.setup_eval {
+  background: rgba(255, 170, 0, 0.2);
+  color: #ffaa00;
+  border: 1px solid #ffaa00;
+}
+
+.hk-deep-action-badge.order_proposal {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  border: 1px solid #a855f7;
+}
+
+.hk-deep-action-badge.order_filled {
+  background: rgba(0, 255, 102, 0.2);
+  color: #00ff66;
+  border: 1px solid #00ff66;
+}
+
+.hk-deep-action-badge.defense_wait {
+  background: rgba(249, 115, 22, 0.2);
+  color: #fb923c;
+  border: 1px solid #f97316;
+}
+
+.hk-deep-action-badge.trade_exit {
+  background: rgba(225, 29, 72, 0.2);
+  color: #fb7185;
+  border: 1px solid #e11d48;
+}
+
+.hk-deep-agent-tag {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.hk-deep-symbol-tag {
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  color: #f1f5f9;
+  background: rgba(14, 28, 44, 0.6);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid #1e3a29;
+}
+
+.hk-deep-mkt-tag {
+  font-size: 10px;
+  color: #64748b;
+  font-family: var(--hk-font-mono);
+}
+
+.hk-deep-time {
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  color: #64748b;
+}
+
+.hk-deep-log-msg {
+  font-size: 12px;
+  color: #e2e8f0;
+  line-height: 1.5;
+}
+
+.hk-deep-details-expander {
+  margin-top: 4px;
+}
+
+.hk-deep-details-expander summary {
+  font-size: 10px;
+  color: #38bdf8;
+  cursor: pointer;
+  font-family: var(--hk-font-mono);
+}
+
+.hk-deep-details-code {
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-family: var(--hk-font-mono);
+  font-size: 10px;
+  color: #94a3b8;
+  margin-top: 6px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
