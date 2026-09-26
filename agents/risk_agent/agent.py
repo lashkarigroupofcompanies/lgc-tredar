@@ -72,9 +72,18 @@ class RiskManagementAgent:
         logger.info(f"[RiskAgent] Master Risk Shield online. Base capital: ${account_balance:,.2f} | Base risk: {base_risk_per_trade_pct}%")
 
     def set_mode(self, mode: str):
-        """Sets active risk mode: 'CONSERVATIVE_SAFE' or 'WILD_MODE'."""
-        self.active_mode = "WILD_MODE" if "WILD" in str(mode).upper() else "CONSERVATIVE_SAFE"
-        logger.info(f"[RiskAgent] Risk Mode set to: {self.active_mode}")
+        """Sets active risk mode: 'SAFE', 'MONEY_MAKER', or 'DANGEROUS'."""
+        clean = str(mode).upper()
+        if "DANGEROUS" in clean or "WILD" in clean:
+            self.active_mode = "DANGEROUS"
+            self.base_risk_per_trade_pct = 0.35  # Micro risk for high-frequency evolution lab
+        elif "MONEY" in clean or "MAKER" in clean:
+            self.active_mode = "MONEY_MAKER"
+            self.base_risk_per_trade_pct = 0.85
+        else:
+            self.active_mode = "SAFE"
+            self.base_risk_per_trade_pct = 1.25
+        logger.info(f"[RiskAgent] Risk Mode set to: {self.active_mode} (Base Risk: {self.base_risk_per_trade_pct}%)")
 
     def reset_daily_session(self, current_balance: Optional[float] = None):
         """Called at daily market session open."""

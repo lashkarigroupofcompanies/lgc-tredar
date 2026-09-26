@@ -183,8 +183,8 @@ export class HackerDeskController {
   public currentWebcam = GLOBAL_WEBCAMS[0];
   public tickInterval: number | null = null;
 
-  // Operational Mode
-  public tradingMode: 'CONSERVATIVE_SAFE' | 'WILD_MODE' = 'CONSERVATIVE_SAFE';
+  // Operational Mode (3 Modes with dedicated ₹5,00,000 capital ledgers)
+  public tradingMode: 'SAFE' | 'MONEY_MAKER' | 'DANGEROUS' = 'SAFE';
 
   // Agent Army Master Control State
   public isAgentArmyRunning = false;
@@ -201,9 +201,9 @@ export class HackerDeskController {
   public globeLayers = { hubs: true, arcs: true, cables: true, flights: true, weather: true };
   public flightFetchInterval: number | null = null;
 
-  // Analysis Screen State
+  // Analysis Screen State (with 3 Dedicated Mode Tabs)
   public activeAnalysisTab: 'POSITIONS' | 'HISTORY' | 'DEFENSIVE_REJECTIONS' = 'HISTORY';
-  public activeAnalysisMainTab: 'OVERVIEW' | 'MISSION_CONTROL' | 'EXECUTED_TRADES' | 'LLM_CONFIG' | 'RISK' | 'HEALTH' | 'LEARNING' | 'LOGS' = 'OVERVIEW';
+  public activeAnalysisMainTab: 'OVERVIEW' | 'MODE_SAFE' | 'MODE_MONEY_MAKER' | 'MODE_DANGEROUS' | 'MISSION_CONTROL' | 'EXECUTED_TRADES' | 'LLM_CONFIG' | 'RISK' | 'HEALTH' | 'LEARNING' | 'LOGS' = 'OVERVIEW';
   public activeGrowthFilterMarket: string = 'TOTAL';
   public livePositionsList: AnalysisPosition[] = [];
   public pastTradesList: AnalysisTrade[] = [];
@@ -555,23 +555,23 @@ export class HackerDeskController {
             <!-- Step 2: Trading Style -->
             <div class="hk-step-panel" id="hkStepPanel2">
               <div class="hk-panel-title-large">Step 2: Choose Strategy Style & Alpha Regime</div>
-              <div class="hk-panel-desc">Select whether agents trade in safe preservation mode, wild momentum, or let AI decide.</div>
+              <div class="hk-panel-desc">Select whether agents trade in safe sniper mode, multi-asset money maker, or dangerous high-frequency neural learning.</div>
               <div class="hk-option-grid" id="hkStyleOptionGrid">
-                <div class="hk-option-card selected" data-style="ALL">
-                  <div class="hk-option-card-header">🤖 AI DECIDES AUTO (Adaptive Regime)</div>
-                  <div class="hk-option-card-desc">CEO Agent and Analytical scanner dynamically switch between Safe and Wild modes based on volatility.</div>
+                <div class="hk-option-card selected" data-style="SAFE">
+                  <div class="hk-option-card-header">🛡️ SAFE MODE (Institutional Sniper)</div>
+                  <div class="hk-option-card-desc">High confluence (≥75 pts), ~70% win rate target, 1 trade every 3–5 hrs. Patient and capital protective.</div>
                 </div>
-                <div class="hk-option-card" data-style="WILD_MODE">
-                  <div class="hk-option-card-header">🔥 WILD MODE (High-Beta Momentum)</div>
-                  <div class="hk-option-card-desc">Explosive fast scalping, aggressive breakouts, high volatility capture with ultra-tight risk defense.</div>
+                <div class="hk-option-card" data-style="MONEY_MAKER">
+                  <div class="hk-option-card-header">💰 MONEY MAKER (Daily Driver Alpha)</div>
+                  <div class="hk-option-card-desc">Scans multi-assets simultaneously for 3–5 setups (score ≥60 pts). 3–6 trades every 5–6 hours.</div>
                 </div>
-                <div class="hk-option-card" data-style="CONSERVATIVE_SAFE">
-                  <div class="hk-option-card-header">🛡️ CONSERVATIVE SAFE (Steady Trends)</div>
-                  <div class="hk-option-card-desc">Disciplined trend confirmation, capital preservation, moderate volatility filter.</div>
+                <div class="hk-option-card" data-style="DANGEROUS">
+                  <div class="hk-option-card-header">⚡ DANGEROUS MODE (Neural Evolution Lab)</div>
+                  <div class="hk-option-card-desc">10–20 trades/hr paper scalping on 1m/5m bars (score ≥42 pts). Rapid learning feeds shared neural brain.</div>
                 </div>
-                <div class="hk-option-card" data-style="SCALPING">
-                  <div class="hk-option-card-header">⚡ Fast Scalping (1m - 5m)</div>
-                  <div class="hk-option-card-desc">High-speed entries, tight 1-3 tick scalps, instant breakeven locking at +1.0R.</div>
+                <div class="hk-option-card" data-style="ALL">
+                  <div class="hk-option-card-header">🤖 AI ADAPTIVE (Auto Regime)</div>
+                  <div class="hk-option-card-desc">Dynamic switching between Safe and Money Maker modes based on real-time market volatility.</div>
                 </div>
               </div>
             </div>
@@ -1841,24 +1841,44 @@ export class HackerDeskController {
     });
   }
 
-  private async toggleWildMode(): Promise<void> {
+  public applyTradingModeUI(mode: 'SAFE' | 'MONEY_MAKER' | 'DANGEROUS'): void {
     const btn = document.getElementById('hkWildModeBtn');
     const txt = document.getElementById('hkWildBtnText');
     const icon = document.getElementById('hkWildIcon');
+    const ceo = document.getElementById('hudCeoMandate');
+    const risk = document.getElementById('hudRiskStatus');
 
-    if (this.tradingMode === 'CONSERVATIVE_SAFE') {
-      this.tradingMode = 'WILD_MODE';
-      if (btn) btn.className = 'hk-wild-mode-btn wild';
-      if (txt) txt.innerHTML = 'MODE: <strong>WILD 🔥</strong>';
-      if (icon) icon.textContent = '🔥';
-      this.updateHudOnWildMode(true);
+    if (mode === 'DANGEROUS') {
+      if (btn) btn.className = 'hk-wild-mode-btn dangerous';
+      if (txt) txt.innerHTML = 'MODE: <strong>DANGEROUS ⚡</strong>';
+      if (icon) icon.textContent = '⚡';
+      if (ceo) ceo.textContent = '⚡ NEURAL_EVOLUTION_LAB (FAST SCALPING 10-20 TRADES/HR)';
+      if (risk) risk.textContent = '0.35% Micro Risk | Fast 1m/5m Scalps (Score ≥42)';
+    } else if (mode === 'MONEY_MAKER') {
+      if (btn) btn.className = 'hk-wild-mode-btn moneymaker';
+      if (txt) txt.innerHTML = 'MODE: <strong>MONEY MAKER 💰</strong>';
+      if (icon) icon.textContent = '💰';
+      if (ceo) ceo.textContent = '💰 DAILY_DRIVER_ALPHA (MULTI-ASSET SCANS, 3-5 SETUPS)';
+      if (risk) risk.textContent = '0.85% Dynamic Risk | Multi-Asset Confluence (Score ≥60)';
     } else {
-      this.tradingMode = 'CONSERVATIVE_SAFE';
       if (btn) btn.className = 'hk-wild-mode-btn safe';
-      if (txt) txt.innerHTML = 'MODE: <strong>SAFE</strong>';
+      if (txt) txt.innerHTML = 'MODE: <strong>SAFE 🛡️</strong>';
       if (icon) icon.textContent = '🛡️';
-      this.updateHudOnWildMode(false);
+      if (ceo) ceo.textContent = '🛡️ INSTITUTIONAL_SNIPER (STEADY TREND, 70% WIN TARGET)';
+      if (risk) risk.textContent = '1.25% Max Risk | Pristine Confluence (Score ≥75)';
     }
+  }
+
+  private async toggleWildMode(): Promise<void> {
+    if (this.tradingMode === 'SAFE') {
+      this.tradingMode = 'MONEY_MAKER';
+    } else if (this.tradingMode === 'MONEY_MAKER') {
+      this.tradingMode = 'DANGEROUS';
+    } else {
+      this.tradingMode = 'SAFE';
+    }
+
+    this.applyTradingModeUI(this.tradingMode);
 
     try {
       await fetch('/api/trading-mode', {
@@ -1872,14 +1892,10 @@ export class HackerDeskController {
   }
 
   private updateHudOnWildMode(isWild: boolean): void {
-    const ceo = document.getElementById('hudCeoMandate');
-    const risk = document.getElementById('hudRiskStatus');
     if (isWild) {
-      if (ceo) ceo.textContent = '🔥 WILD_MOMENTUM_ALPHA (AGGRESSIVE SCALPING)';
-      if (risk) risk.textContent = '⚡ TIGHT RISK DEFENSE (0.5% - 1.0%) | FAST HORIZON';
+      this.applyTradingModeUI('DANGEROUS');
     } else {
-      if (ceo) ceo.textContent = '🛡️ BALANCED_CAPITAL_GROWTH (STEADY TREND)';
-      if (risk) risk.textContent = '1.0% Max Risk (₹5,000) | Disciplined Trailing';
+      this.applyTradingModeUI('SAFE');
     }
   }
 
@@ -2524,6 +2540,12 @@ export class HackerDeskController {
           </div>
         </section>
       `;
+    } else if (this.activeAnalysisMainTab === 'MODE_SAFE') {
+      mainContentHtml = this.renderModePortfolioSection('SAFE', data, cur);
+    } else if (this.activeAnalysisMainTab === 'MODE_MONEY_MAKER') {
+      mainContentHtml = this.renderModePortfolioSection('MONEY_MAKER', data, cur);
+    } else if (this.activeAnalysisMainTab === 'MODE_DANGEROUS') {
+      mainContentHtml = this.renderModePortfolioSection('DANGEROUS', data, cur);
     } else if (this.activeAnalysisMainTab === 'MISSION_CONTROL') {
       mainContentHtml = this.renderMissionControlSection(data, cur);
     } else if (this.activeAnalysisMainTab === 'EXECUTED_TRADES') {
@@ -2545,6 +2567,15 @@ export class HackerDeskController {
       <div class="hk-ana-tabs-bar">
         <button class="hk-ana-tab-btn ${this.activeAnalysisMainTab === 'OVERVIEW' ? 'active' : ''}" data-tab="OVERVIEW">
           <span>📊</span> Overview & Live P&L
+        </button>
+        <button class="hk-ana-tab-btn ${this.activeAnalysisMainTab === 'MODE_SAFE' ? 'active' : ''}" data-tab="MODE_SAFE" style="${this.activeAnalysisMainTab === 'MODE_SAFE' ? '' : 'border-color:rgba(0,242,254,0.4);color:#00f2fe;'}">
+          <span>🛡️</span> Safe Mode (₹5L)
+        </button>
+        <button class="hk-ana-tab-btn ${this.activeAnalysisMainTab === 'MODE_MONEY_MAKER' ? 'active' : ''}" data-tab="MODE_MONEY_MAKER" style="${this.activeAnalysisMainTab === 'MODE_MONEY_MAKER' ? '' : 'border-color:rgba(255,170,0,0.4);color:#ffaa00;'}">
+          <span>💰</span> Money Maker (₹5L)
+        </button>
+        <button class="hk-ana-tab-btn ${this.activeAnalysisMainTab === 'MODE_DANGEROUS' ? 'active' : ''}" data-tab="MODE_DANGEROUS" style="${this.activeAnalysisMainTab === 'MODE_DANGEROUS' ? '' : 'border-color:rgba(255,34,85,0.5);color:#ff4d6d;'}">
+          <span>⚡</span> Dangerous Mode (₹5L)
         </button>
         <button class="hk-ana-tab-btn ${this.activeAnalysisMainTab === 'MISSION_CONTROL' ? 'active' : ''}" data-tab="MISSION_CONTROL" style="${this.activeAnalysisMainTab === 'MISSION_CONTROL' ? '' : 'border-color:#00f2fe;color:#00f2fe;'}">
           <span>🛰️</span> Mission Control & Radar
@@ -2799,6 +2830,337 @@ export class HackerDeskController {
         }
       });
     });
+
+    // 3 Modes quick regime switch buttons
+    (['SAFE', 'MONEY_MAKER', 'DANGEROUS'] as const).forEach(mKey => {
+      document.getElementById(`hkSwitchToModeBtn_${mKey}`)?.addEventListener('click', async () => {
+        this.tradingMode = mKey;
+        this.applyTradingModeUI(this.tradingMode);
+        try {
+          await fetch('/api/trading-mode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: mKey })
+          });
+        } catch (e) {
+          console.warn('[HackerDesk] API trading-mode sync error:', e);
+        }
+        this.renderAnalysisScreen(data);
+      });
+    });
+  }
+
+  // --- Dedicated 3-Mode Portfolio Views (₹5,00,000 Capital Ledgers Each) ---
+  private renderModePortfolioSection(modeKey: 'SAFE' | 'MONEY_MAKER' | 'DANGEROUS', data: any, cur: string): string {
+    const mp = (data.mode_portfolios && data.mode_portfolios[modeKey]) ? data.mode_portfolios[modeKey] : {
+      mode: modeKey,
+      title: modeKey === 'DANGEROUS' ? '⚡ NEURAL EVOLUTION LAB (HIGH FREQUENCY)' : (modeKey === 'MONEY_MAKER' ? '💰 DAILY DRIVER ALPHA MODE' : '🛡️ INSTITUTIONAL SNIPER MODE'),
+      subtitle: modeKey === 'DANGEROUS' ? 'High-frequency micro scalping & rapid neural weight learning (10-20 trades/hr)' : (modeKey === 'MONEY_MAKER' ? 'Scans multi-assets simultaneously for 3-5 setups (3-6 trades / 5-6 hrs)' : 'Patience-driven sniper execution on only pristine setups (1 trade / 3-5 hrs)'),
+      starting_capital: 500000.0,
+      current_value: 500000.0,
+      equity: 500000.0,
+      balance: 500000.0,
+      net_growth_money: 0.0,
+      total_pnl: 0.0,
+      growth_percent: 0.0,
+      pnl_percent: 0.0,
+      realized_pnl: 0.0,
+      unrealized_pnl: 0.0,
+      available_cash: 500000.0,
+      margin_used: 0.0,
+      win_rate: 0.0,
+      total_trades: 0,
+      winning_trades: 0,
+      losing_trades: 0,
+      open_positions: [],
+      closed_trades: [],
+      equity_curve: [{"point": 0, "equity": 500000.0, "pnl": 0.0}],
+      neural_learning_points: 0
+    };
+
+    const isActive = this.tradingMode === modeKey;
+    const modeClass = modeKey === 'SAFE' ? 'safe' : (modeKey === 'MONEY_MAKER' ? 'moneymaker' : 'dangerous');
+    const badgeLabel = modeKey === 'SAFE' ? 'INSTITUTIONAL SNIPER' : (modeKey === 'MONEY_MAKER' ? 'DAILY DRIVER' : 'NEURAL EVOLUTION LAB');
+    const badgeIcon = modeKey === 'SAFE' ? '🛡️' : (modeKey === 'MONEY_MAKER' ? '💰' : '⚡');
+    const freqDesc = modeKey === 'SAFE'
+      ? '🎯 Execution Target: 1 trade every 3–5 hours • Confluence Filter: Score ≥ 75 pts • Top 1 Setup'
+      : (modeKey === 'MONEY_MAKER'
+        ? '🎯 Execution Target: 3–6 trades every 5–6 hours • Confluence Filter: Score ≥ 60 pts • Top 3–5 Setups Simultaneously'
+        : '🎯 Execution Target: 10–20 trades per hour • Fast Scalps: 1m/5m Bars • Score ≥ 42 pts • Micro Risk: 0.35%');
+
+    const startingCap = mp.starting_capital || 500000.0;
+    const currentVal = mp.current_value || startingCap;
+    const netPnl = mp.total_pnl || 0.0;
+    const isPnlPos = netPnl >= 0;
+    const winRate = mp.win_rate !== undefined ? mp.win_rate : 0.0;
+    const totalTrades = mp.total_trades || (mp.closed_trades ? mp.closed_trades.length : 0);
+    const winCount = mp.winning_trades || 0;
+    const lossCount = mp.losing_trades || 0;
+    const openPositions: AnalysisPosition[] = mp.open_positions || [];
+    const closedTrades: AnalysisTrade[] = mp.closed_trades || [];
+    const learnedPoints = mp.neural_learning_points || (totalTrades * 25);
+
+    // Render Mode Specific Equity Curve
+    const curve: any[] = mp.equity_curve && mp.equity_curve.length > 1
+      ? mp.equity_curve
+      : [
+          { point: 0, equity: startingCap, pnl: 0 },
+          { point: 1, equity: startingCap, pnl: 0 },
+          { point: 2, equity: currentVal, pnl: netPnl }
+        ];
+
+    const minVal = Math.min(...curve.map((p: any) => p.equity)) * 0.995;
+    const maxVal = Math.max(...curve.map((p: any) => p.equity)) * 1.005;
+    const range = (maxVal - minVal) || 1;
+    const strokeColor = isPnlPos ? '#00ff66' : '#ff3366';
+
+    const pts = curve.map((p: any, idx: number) => {
+      const x = (idx / Math.max(1, curve.length - 1)) * 390 + 20;
+      const y = 145 - ((p.equity - minVal) / range) * 115;
+      return `${x},${y}`;
+    }).join(' ');
+
+    return `
+      <div style="display:flex;flex-direction:column;gap:16px;margin-top:8px;">
+        <!-- Mode Hero Card -->
+        <div class="hk-mode-hero-card ${modeClass}">
+          <div class="hk-mode-hero-header">
+            <div class="hk-mode-title-group">
+              <span style="font-size:26px;">${badgeIcon}</span>
+              <div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="font-family:var(--hk-font-mono);font-size:16px;font-weight:900;color:#f0fdf4;">${mp.title || badgeLabel}</span>
+                  <span class="hk-mode-badge-tag ${modeClass}">${badgeLabel}</span>
+                  ${isActive
+                    ? `<span style="font-family:var(--hk-font-mono);font-size:10px;padding:3px 8px;border-radius:4px;background:#00ff66;color:#000000;font-weight:900;">🟢 ACTIVE TERMINAL REGIME</span>`
+                    : `<span style="font-family:var(--hk-font-mono);font-size:10px;padding:3px 8px;border-radius:4px;background:#14281a;color:#94a3b8;font-weight:700;">VIRTUAL LEDGER READY</span>`
+                  }
+                </div>
+                <div style="font-size:11px;color:#94a3b8;margin-top:4px;">
+                  ${mp.subtitle}
+                </div>
+                <div style="font-size:11px;color:#00f2fe;font-family:var(--hk-font-mono);margin-top:4px;">
+                  ${freqDesc}
+                </div>
+              </div>
+            </div>
+            <div>
+              ${!isActive ? `
+                <button class="hk-btn-terminal" id="hkSwitchToModeBtn_${modeKey}" style="font-size:11px;padding:8px 14px;background:linear-gradient(135deg,#003322,#005533);border:1px solid #00ff66;color:#00ff66;cursor:pointer;border-radius:6px;font-weight:800;">
+                  ⚡ SWITCH LIVE AGENTS TO THIS MODE
+                </button>
+              ` : `
+                <div style="font-family:var(--hk-font-mono);font-size:11px;color:#00ff66;border:1px solid #00ff66;padding:6px 12px;border-radius:6px;background:rgba(0,255,102,0.1);font-weight:800;">
+                  ACTIVE ON RUNNING ENGINE
+                </div>
+              `}
+            </div>
+          </div>
+
+          <!-- Neural Synergy Banner (Cross-Mode Learning) -->
+          <div class="hk-mode-synergy-banner">
+            <span style="font-size:16px;">🧠</span>
+            <div>
+              <strong>Unified Neural Memory Matrix:</strong> All trade outcomes and chart pattern validations executed in 
+              ${modeKey === 'DANGEROUS' ? 'Dangerous Mode at high velocity' : 'any mode'} are permanently fed into the shared neural brain. 
+              Knowledge gained here directly increases the edge and win rate across <strong>Safe</strong> and <strong>Money Maker</strong> modes!
+              <span style="color:#00ff66;margin-left:6px;font-family:var(--hk-font-mono);">(${learnedPoints} pattern weights tuned)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6 KPI Grid Cards for Mode Capital -->
+        <section class="hk-kpi-grid">
+          <div class="hk-kpi-card">
+            <div class="hk-kpi-title">DEDICATED STARTING CAPITAL</div>
+            <div class="hk-kpi-value cyan">
+              ${cur}${startingCap.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div class="hk-kpi-sub" style="color:#94a3b8;">
+              Fixed independent mode allocation
+            </div>
+          </div>
+
+          <div class="hk-kpi-card">
+            <div class="hk-kpi-title">CURRENT MODE EQUITY</div>
+            <div class="hk-kpi-value ${isPnlPos ? 'green' : 'red'}">
+              ${cur}${currentVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div class="hk-kpi-sub ${isPnlPos ? 'green' : 'red'}">
+              ${isPnlPos ? '+' : ''}${mp.growth_percent || 0.0}% Overall Growth
+            </div>
+          </div>
+
+          <div class="hk-kpi-card">
+            <div class="hk-kpi-title">NET TOTAL P&L</div>
+            <div class="hk-kpi-value ${isPnlPos ? 'green' : 'red'}">
+              ${isPnlPos ? '+' : ''}${cur}${netPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div class="hk-kpi-sub" style="color:#94a3b8;">
+              Realized: ${cur}${(mp.realized_pnl || 0.0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} | Unrealized: ${cur}${(mp.unrealized_pnl || 0.0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+          </div>
+
+          <div class="hk-kpi-card">
+            <div class="hk-kpi-title">MODE WIN RATE</div>
+            <div class="hk-kpi-value ${Number(winRate) >= 60 ? 'green' : (Number(winRate) >= 45 ? 'amber' : 'red')}">
+              ${winRate}%
+            </div>
+            <div class="hk-kpi-sub" style="color:#94a3b8;">
+              ${winCount} Wins • ${lossCount} Losses (${totalTrades} Total)
+            </div>
+          </div>
+
+          <div class="hk-kpi-card">
+            <div class="hk-kpi-title">AVAILABLE CASH & MARGIN</div>
+            <div class="hk-kpi-value cyan">
+              ${cur}${(mp.available_cash || startingCap).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+            <div class="hk-kpi-sub" style="color:#94a3b8;">
+              Margin in Use: ${cur}${(mp.margin_used || 0.0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+          </div>
+
+          <div class="hk-kpi-card">
+            <div class="hk-kpi-title">SHARED NEURAL WEIGHTS</div>
+            <div class="hk-kpi-value green">
+              ${learnedPoints}
+            </div>
+            <div class="hk-kpi-sub" style="color:#00ff66;">
+              Patterns Fed to Global Brain
+            </div>
+          </div>
+        </section>
+
+        <!-- Mode Equity Trajectory Curve -->
+        <div class="hk-chart-card">
+          <div class="hk-chart-card-header">
+            <span class="hk-chart-card-title">📈 ${mp.title || badgeLabel} - ₹5,00,000 EQUITY TRAJECTORY</span>
+            <span style="font-size:10px;color:#00f2fe;font-family:var(--hk-font-mono);">
+              ${curve.length} TRAJECTORY NODES • ₹5L SEED
+            </span>
+          </div>
+          <div style="height:175px;position:relative;margin-top:8px;">
+            <svg width="100%" height="155" viewBox="0 0 430 155" style="overflow:visible;">
+              <defs>
+                <linearGradient id="modeGrad_${modeKey}" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="${strokeColor}" stop-opacity="0.28" />
+                  <stop offset="100%" stop-color="${strokeColor}" stop-opacity="0.0" />
+                </linearGradient>
+              </defs>
+              <polygon fill="url(#modeGrad_${modeKey})" points="20,155 ${pts} 410,155" />
+              <polyline fill="none" stroke="${strokeColor}" stroke-width="2.5" points="${pts}" filter="drop-shadow(0 0 8px ${strokeColor})" />
+              ${curve.map((p: any, idx: number) => {
+                const x = (idx / Math.max(1, curve.length - 1)) * 390 + 20;
+                const y = 145 - ((p.equity - minVal) / range) * 115;
+                return `
+                  <circle cx="${x}" cy="${y}" r="4" fill="${strokeColor}" stroke="#000000" stroke-width="1.5" />
+                  <text x="${x}" y="${y - 8}" fill="${strokeColor}" font-size="9" font-family="var(--hk-font-mono)" text-anchor="middle" font-weight="bold">
+                    ${cur}${Math.round(p.equity).toLocaleString('en-IN')}
+                  </text>
+                `;
+              }).join('')}
+            </svg>
+          </div>
+        </div>
+
+        <!-- Mode Positions & Trade History Table -->
+        <div class="hk-table-card">
+          <div class="hk-table-tab-bar">
+            <div class="hk-table-tabs">
+              <span style="font-family:var(--hk-font-mono);font-size:13px;font-weight:800;color:#f0fdf4;">
+                ${badgeIcon} ${badgeLabel} TRADES & POSITIONS (${openPositions.length} Open, ${closedTrades.length} Closed)
+              </span>
+            </div>
+            <div style="font-size:11px;color:#00f2fe;">
+              💡 Click any row to load live Candlestick chart
+            </div>
+          </div>
+
+          <div style="overflow-x:auto;">
+            ${this.renderModeTradesTable(openPositions, closedTrades, cur, modeKey)}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderModeTradesTable(openPositions: AnalysisPosition[], closedTrades: AnalysisTrade[], cur: string, modeKey: string): string {
+    if (openPositions.length === 0 && closedTrades.length === 0) {
+      return `
+        <div style="padding:40px 20px;text-align:center;color:#64748b;font-family:var(--hk-font-mono);font-size:12px;">
+          <div style="font-size:24px;margin-bottom:8px;">⏳</div>
+          <div style="color:#94a3b8;font-weight:700;">No trades recorded in ${modeKey} mode yet.</div>
+          <div style="margin-top:6px;font-size:11px;">
+            Switch the active agent regime to <strong>${modeKey}</strong> and start the agent army to begin paper trading with its dedicated ₹5,00,000 ledger!
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <table class="hk-trades-table">
+        <thead>
+          <tr>
+            <th>TYPE</th>
+            <th>SYMBOL</th>
+            <th>MARKET</th>
+            <th>SIDE</th>
+            <th>ENTRY PRICE</th>
+            <th>EXIT / CURRENT</th>
+            <th>P&L (${cur})</th>
+            <th>ROI %</th>
+            <th>EXIT REASON / STATUS</th>
+            <th>ACTION</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${openPositions.map(p => {
+            const isProfit = (p.unrealized_pnl || 0) >= 0;
+            return `
+              <tr class="clickable-row" data-symbol="${p.symbol}" data-market="${p.market}">
+                <td><span style="background:rgba(0,255,102,0.15);color:#00ff66;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:800;">ACTIVE</span></td>
+                <td style="font-weight:700;color:#00ff66;">${p.symbol}</td>
+                <td><span class="hk-badge-status">${p.market}</span></td>
+                <td><span class="hk-badge-side ${p.side.toLowerCase()}">${p.side}</span></td>
+                <td>${cur}${Number(p.entry_price).toLocaleString('en-IN')}</td>
+                <td>${cur}${Number(p.current_price).toLocaleString('en-IN')}</td>
+                <td style="font-weight:700;color:${isProfit ? '#00ff66' : '#ff3366'};">
+                  ${isProfit ? '+' : ''}${cur}${Number(p.unrealized_pnl || 0).toLocaleString('en-IN')}
+                </td>
+                <td style="color:${isProfit ? '#00ff66' : '#ff3366'};font-weight:700;">
+                  ${isProfit ? '+' : ''}${(((p.current_price - p.entry_price) / Math.max(1, p.entry_price)) * 100 * (p.side === 'SELL' ? -1 : 1)).toFixed(2)}%
+                </td>
+                <td style="color:#00f2fe;font-size:11px;">OPEN (Trailing SL active)</td>
+                <td><span class="hk-row-hint">📈 View Chart →</span></td>
+              </tr>
+            `;
+          }).join('')}
+
+          ${closedTrades.map(t => {
+            const isProfit = (t.pnl || 0) >= 0;
+            return `
+              <tr class="clickable-row" data-symbol="${t.symbol}" data-market="${t.market}">
+                <td><span style="background:rgba(100,116,139,0.2);color:#94a3b8;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">CLOSED</span></td>
+                <td style="font-weight:700;color:#f0fdf4;">${t.symbol}</td>
+                <td><span class="hk-badge-status">${t.market}</span></td>
+                <td><span class="hk-badge-side ${t.side.toLowerCase()}">${t.side}</span></td>
+                <td>${cur}${Number(t.entry_price).toLocaleString('en-IN')}</td>
+                <td>${cur}${Number(t.exit_price).toLocaleString('en-IN')}</td>
+                <td style="font-weight:700;color:${isProfit ? '#00ff66' : '#ff3366'};">
+                  ${isProfit ? '+' : ''}${cur}${Number(t.pnl || 0).toLocaleString('en-IN')}
+                </td>
+                <td style="color:${isProfit ? '#00ff66' : '#ff3366'};font-weight:700;">
+                  ${isProfit ? '+' : ''}${t.pnl_percent !== undefined ? t.pnl_percent : (((t.exit_price - t.entry_price) / Math.max(1, t.entry_price)) * 100 * (t.side === 'SELL' ? -1 : 1)).toFixed(2)}%
+                </td>
+                <td style="font-size:11px;color:${isProfit ? '#00ff66' : '#ffaa00'};">${t.exit_reason || 'TARGET REACHED'}</td>
+                <td><span class="hk-row-hint">📈 View Chart →</span></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
   }
 
   // --- Dedicated Multi-Market Paper Trading Portfolio Deck (₹1,00,000 Per Market) ---
@@ -4267,7 +4629,7 @@ export class HackerDeskController {
       cycle_count: 0,
       last_tick_time: '--:--:--',
       is_running: false,
-      trading_mode: 'CONSERVATIVE_SAFE',
+      trading_mode: 'SAFE',
       active_market: 'INDIAN_STOCKS',
       total_scanned: 0,
       agents: [],
@@ -5071,20 +5433,19 @@ ${notes}
           this.updateMasterSwitchUI();
         }
 
-        if (st.trading_mode && st.trading_mode !== this.tradingMode) {
-          this.tradingMode = st.trading_mode;
-          this.updateHudOnWildMode(this.tradingMode === 'WILD_MODE');
-          const btn = document.getElementById('hkWildModeBtn');
-          const txt = document.getElementById('hkWildBtnText');
-          const icon = document.getElementById('hkWildIcon');
-          if (this.tradingMode === 'WILD_MODE') {
-            if (btn) btn.className = 'hk-wild-mode-btn wild';
-            if (txt) txt.innerHTML = 'MODE: <strong>WILD 🔥</strong>';
-            if (icon) icon.textContent = '🔥';
+        if (st.trading_mode) {
+          const raw = String(st.trading_mode).toUpperCase();
+          let serverMode: 'SAFE' | 'MONEY_MAKER' | 'DANGEROUS' = 'SAFE';
+          if (raw.includes('DANGEROUS') || raw.includes('WILD')) {
+            serverMode = 'DANGEROUS';
+          } else if (raw.includes('MONEY') || raw.includes('MAKER')) {
+            serverMode = 'MONEY_MAKER';
           } else {
-            if (btn) btn.className = 'hk-wild-mode-btn safe';
-            if (txt) txt.innerHTML = 'MODE: <strong>SAFE</strong>';
-            if (icon) icon.textContent = '🛡️';
+            serverMode = 'SAFE';
+          }
+          if (serverMode !== this.tradingMode) {
+            this.tradingMode = serverMode;
+            this.applyTradingModeUI(this.tradingMode);
           }
         }
 

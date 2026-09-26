@@ -71,6 +71,12 @@ class PaperBroker:
         self.market_starting_cap: Dict[str, float] = {
             m: self.per_market_capital for m in self.SUPPORTED_MARKETS
         }
+        # Dedicated ₹5,00,000 fixed starting capital pools for each operational mode
+        self.mode_starting_cap: Dict[str, float] = {
+            "SAFE": 500000.0,
+            "MONEY_MAKER": 500000.0,
+            "DANGEROUS": 500000.0
+        }
         self.starting_balance = float(sum(self.market_starting_cap.values())) if starting_balance == 500000.0 else float(starting_balance)
         self.balance = self.starting_balance
         self.open_positions: Dict[str, Dict[str, Any]] = {}
@@ -91,14 +97,82 @@ class PaperBroker:
             logger.warning(f"[PaperBroker] Cloud trade hydration deferred: {e}")
 
     def reset(self, starting_balance: float = 500000.0, per_market_capital: float = 100000.0):
-        """Cleans out open positions and trade history and re-allocates starting capital (₹1,00,000 per market)."""
+        """Cleans out open positions and trade history and re-allocates starting capital (₹1,00,000 per market, ₹5,00,000 per mode)."""
         self.per_market_capital = float(per_market_capital)
         self.market_starting_cap = {m: self.per_market_capital for m in self.SUPPORTED_MARKETS}
+        self.mode_starting_cap = {
+            "SAFE": 500000.0,
+            "MONEY_MAKER": 500000.0,
+            "DANGEROUS": 500000.0
+        }
         self.starting_balance = float(sum(self.market_starting_cap.values()))
         self.balance = self.starting_balance
         self.open_positions = {}
         self.trade_history = []
-        logger.info(f"[PaperBroker] Account reset to ₹1,00,000 per market (Total Starting: ₹{self.starting_balance:,.2f})")
+        logger.info(f"[PaperBroker] Account reset to ₹1,00,000 per market and ₹5,00,000 per mode (Total Starting: ₹{self.starting_balance:,.2f})")
+
+    def get_mode_portfolio(self, mode: str) -> Dict[str, Any]:
+        """Calculates dedicated ₹5,00,000 portfolio ledger for a trading mode (SAFE, MONEY_MAKER, DANGEROUS)."""
+        clean_m = str(mode).upper()
+        if "DANGEROUS" in clean_m or "WILD" in clean_m:
+            m_key = "DANGEROUS"
+            mode_display = "⚡ Dangerous Mode (Learning Lab)"
+        elif "MONEY" in clean_m or "MAKER" in clean_m:
+            m_key = "MONEY_MAKER"
+            mode_display = "💰 Money Maker Mode (Multi-Setup)"
+        else:
+            m_key = "SAFE"
+            mode_display = "🛡️ Safe Mode (Institutional Sniper)"
+
+        start_cap = self.mode_starting_cap.get(m_key, 500000.0)
+
+        def matches_mode(record_mode):
+            rm = str(record_mode or "SAFE").upper()
+            if m_key == "DANGEROUS":
+                return "DANGEROUS" in rm or "WILD" in rm
+            elif m_key == "MONEY_MAKER":
+                return "MONEY" in rm or "MAKER" in rm
+            else:
+                return "SAFE" in rm or rm in ["CONSERVATIVE_SAFE", "NORMAL", ""]
+
+        m_trades = [t for t in self.trade_history if matches_mode(t.get("trading_mode"))]
+        m_positions = [p for p in self.open_positions.values() if matches_mode(p.get("trading_mode"))]
+
+        realized_pnl = sum(float(t.get("realized_pnl", t.get("pnl", 0.0))) for t in m_trades)
+        unrealized_pnl = sum(float(p.get("unrealized_pnl", 0.0)) for p in m_positions)
+        total_pnl = realized_pnl + unrealized_pnl
+        current_val = start_cap + total_pnl
+        pnl_pct = round((total_pnl / max(1.0, start_cap)) * 100.0, 2)
+
+        margin_used = sum(float(p.get("entry_price", 0.0)) * float(p.get("remaining_units", 1.0)) * 0.20 for p in m_positions)
+        available_cash = max(0.0, current_val - margin_used)
+
+        wins = [t for t in m_trades if float(t.get("realized_pnl", t.get("pnl", 0.0))) > 0]
+        losses = [t for t in m_trades if float(t.get("realized_pnl", t.get("pnl", 0.0))) < 0]
+        tot_closed = len(m_trades)
+        win_rate = round((len(wins) / max(1, tot_closed)) * 100.0, 1) if tot_closed > 0 else 0.0
+
+        return {
+            "mode": m_key,
+            "name": mode_display,
+            "starting_capital": round(start_cap, 2),
+            "current_value": round(current_val, 2),
+            "equity": round(current_val, 2),
+            "balance": round(start_cap + realized_pnl, 2),
+            "total_pnl": round(total_pnl, 2),
+            "realized_pnl": round(realized_pnl, 2),
+            "unrealized_pnl": round(unrealized_pnl, 2),
+            "pnl_percent": pnl_pct,
+            "margin_used": round(margin_used, 2),
+            "available_cash": round(available_cash, 2),
+            "open_positions_count": len(m_positions),
+            "total_trades_count": tot_closed,
+            "wins_count": len(wins),
+            "losses_count": len(losses),
+            "win_rate_pct": win_rate,
+            "open_positions": m_positions,
+            "trade_history": m_trades[-30:]
+        }
 
     def get_market_portfolio(self, market: str) -> Dict[str, Any]:
         """Calculates dedicated ₹1,00,000 portfolio book for an individual market."""
@@ -169,6 +243,7 @@ class PaperBroker:
             avg_trade_eff = round(sum(effs) / total_closed, 1)
 
         market_portfolios = {m: self.get_market_portfolio(m) for m in self.SUPPORTED_MARKETS}
+        mode_portfolios = {m: self.get_mode_portfolio(m) for m in ["SAFE", "MONEY_MAKER", "DANGEROUS"]}
 
         return {
             "starting_balance": round(total_starting, 2),
@@ -188,7 +263,8 @@ class PaperBroker:
             "losses_count": len(losing_trades),
             "win_rate_pct": win_rate,
             "avg_trade_efficiency_pct": avg_trade_eff,
-            "market_portfolios": market_portfolios
+            "market_portfolios": market_portfolios,
+            "mode_portfolios": mode_portfolios
         }
 
     @classmethod
@@ -247,7 +323,8 @@ class PaperBroker:
         atr_pct: float = 1.5,
         in_killzone: bool = False,
         adx_value: float = 22.0,
-        trade_type: str = "INTRADAY"
+        trade_type: str = "INTRADAY",
+        trading_mode: str = "SAFE"
     ) -> Dict[str, Any]:
         """
         Executes order with dynamic volatility-scaled slippage, HFT queue modeling,
@@ -294,6 +371,7 @@ class PaperBroker:
             "risk_pct": risk_pct,
             "strategy_name": strategy_name,
             "trade_type": trade_type,
+            "trading_mode": trading_mode,
             "holding_mode": "3_TIER_SCALE_OUT_WITH_CHANDELIER_RUNNER",
             "can_exit_in_1_bar": True,
             "bars_held": 0,
@@ -368,6 +446,7 @@ class PaperBroker:
             "trade_id": trade_id,
             "symbol": pos["symbol"],
             "market": pos["market"],
+            "trading_mode": pos.get("trading_mode", "SAFE"),
             "direction": direction,
             "strategy_name": pos["strategy_name"],
             "trade_type": pos.get("trade_type", "INTRADAY"),

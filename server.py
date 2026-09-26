@@ -617,6 +617,72 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
         market_breakdown.append(mb_item)
         market_portfolios[m_key] = mb_item
 
+    # Dedicated ₹5,00,000 Capital Portfolios for each of the 3 Modes
+    mode_portfolios = {}
+    mode_specs = [
+        ("SAFE", "🛡️ Safe Mode (Institutional Sniper)", "1 trade / 3-5 hrs • ~70% win-rate target • High Confluence (>=75 pts)"),
+        ("MONEY_MAKER", "💰 Money Maker Mode (Multi-Setup)", "3-6 trades / 5-6 hrs • Top 3-5 setups simultaneously • Intraday scalps"),
+        ("DANGEROUS", "⚡ Dangerous Mode (Learning Lab)", "10-20 trades / hr • High-velocity neural evolution • Micro scalps")
+    ]
+    for mode_key, mode_title, mode_sub in mode_specs:
+        alloc_mode = 500000.0
+
+        def matches_mode_check(record_mode, target_key):
+            rm = str(record_mode or "SAFE").upper()
+            if target_key == "DANGEROUS":
+                return "DANGEROUS" in rm or "WILD" in rm
+            elif target_key == "MONEY_MAKER":
+                return "MONEY" in rm or "MAKER" in rm
+            else:
+                return "SAFE" in rm or rm in ["CONSERVATIVE_SAFE", "NORMAL", ""]
+
+        m_closed = [t for t in all_combined_trades if matches_mode_check(t.get("trading_mode"), mode_key)]
+        m_open = [p for p in all_open_positions if matches_mode_check(p.get("trading_mode"), mode_key)]
+
+        m_real = sum(t["pnl"] for t in m_closed)
+        m_unreal = sum(p.get("unrealized_pnl", 0.0) for p in m_open)
+        m_tot = m_real + m_unreal
+        m_cur = alloc_mode + m_tot
+        m_pct = round((m_tot / max(1.0, alloc_mode)) * 100.0, 2)
+        m_margin = sum(float(p.get("entry_price", 0.0)) * float(p.get("shares", 1.0)) * 0.20 for p in m_open)
+        m_cash = max(0.0, m_cur - m_margin)
+
+        m_wins = [t for t in m_closed if t["pnl"] > 0]
+        m_losses = [t for t in m_closed if t["pnl"] < 0]
+        m_win_rate = round((len(m_wins) / max(1, len(m_closed))) * 100.0, 1) if m_closed else 0.0
+
+        m_curve = [{"point": 0, "equity": alloc_mode, "pnl": 0.0}]
+        m_run = alloc_mode
+        for idx, t in enumerate(m_closed):
+            m_run += t["pnl"]
+            m_curve.append({"point": idx + 1, "equity": round(m_run, 2), "pnl": round(t["pnl"], 2)})
+
+        mode_portfolios[mode_key] = {
+            "mode": mode_key,
+            "title": mode_title,
+            "subtitle": mode_sub,
+            "starting_capital": round(alloc_mode, 2),
+            "current_value": round(m_cur, 2),
+            "equity": round(m_cur, 2),
+            "balance": round(alloc_mode + m_real, 2),
+            "net_growth_money": round(m_tot, 2),
+            "total_pnl": round(m_tot, 2),
+            "growth_percent": m_pct,
+            "pnl_percent": m_pct,
+            "realized_pnl": round(m_real, 2),
+            "unrealized_pnl": round(m_unreal, 2),
+            "available_cash": round(m_cash, 2),
+            "margin_used": round(m_margin, 2),
+            "open_positions": len(m_open),
+            "total_trades": len(m_closed),
+            "wins": len(m_wins),
+            "losses": len(m_losses),
+            "win_rate": m_win_rate,
+            "equity_curve": m_curve,
+            "open_positions_list": m_open,
+            "trades_list": m_closed
+        }
+
     today_trades_all = [t for t in all_combined_trades if t["date"] == today_str]
 
     screener_rep = core.system_state.get("screener_report", {})
@@ -647,11 +713,13 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
     for cand in all_screened[:25]:
         score = float(cand.get("safety_score", 0.0))
         status_raw = cand.get("status", "WATCHLIST")
-        if score >= 75:
+        trigger_min = 42.0 if core.trading_mode == "DANGEROUS" else (60.0 if core.trading_mode == "MONEY_MAKER" else 75.0)
+        watch_min = 30.0 if core.trading_mode == "DANGEROUS" else (45.0 if core.trading_mode == "MONEY_MAKER" else 55.0)
+        if score >= trigger_min:
             radar_action = "NEAR_TRIGGER"
             radar_badge = "🔥 Trigger Zone"
             radar_class = "near-trigger"
-        elif score >= 55:
+        elif score >= watch_min:
             radar_action = "ACTIVE_WATCH"
             radar_badge = "👁️ Monitoring"
             radar_class = "watching"
@@ -817,6 +885,7 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
             "today_date": today_str
         },
         "market_portfolios": market_portfolios,
+        "mode_portfolios": mode_portfolios,
         "equity_curve": equity_curve,
         "market_allocation": market_allocation,
         "market_breakdown": market_breakdown,

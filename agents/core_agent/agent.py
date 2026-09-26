@@ -133,20 +133,27 @@ class CoreTradingAgent:
 
     def set_trading_mode(self, mode: str):
         """
-        Switch operational trading mode:
-        - CONSERVATIVE_SAFE: Steady trends, moderate volatility, 15m/1h timeframes.
-        - WILD_MODE: High-beta fast momentum, heavy volatility, fast intraday timeframes (5m),
-                     ultra-tight risk defense, and strict news catalyst verification.
+        Switch operational trading mode across the 3 specialized regimes:
+        - SAFE: Steady trends, high confluence, 15m/1h timeframes (~1 trade / 3-5 hrs). Target win rate ~70%.
+        - MONEY_MAKER: Balanced intraday driver, 5m/15m timeframes, top 3-5 setups (3-6 trades / 5-6 hrs).
+        - DANGEROUS: Rapid neural evolution learning lab, 1m/5m fast scalps, micro-sizing (10-20 trades / hr).
         """
-        clean_mode = "WILD_MODE" if "WILD" in mode.upper() else "CONSERVATIVE_SAFE"
-        self.trading_mode = clean_mode
-        self.system_state["trading_mode"] = self.trading_mode
-        if self.trading_mode == "WILD_MODE":
-            self.ceo_agent.active_mandate = "WILD_MOMENTUM_ALPHA"
-            logger.info("[CoreAgent] 🔥 WILD MODE ENGAGED! High-volatility fast intraday mode active. Scanning explosive momentum charts with ultra-tight risk shields.")
+        clean_mode = str(mode).upper()
+        if "DANGEROUS" in clean_mode or "WILD" in clean_mode:
+            self.trading_mode = "DANGEROUS"
+            self.ceo_agent.active_mandate = "HIGH_VELOCITY_NEURAL_EVOLUTION"
+            logger.info("[CoreAgent] ⚡ DANGEROUS MODE ENGAGED! High-frequency paper trading evolution active (10-20 trades/hr target, micro-sizing 0.35%).")
+        elif "MONEY" in clean_mode or "MAKER" in clean_mode:
+            self.trading_mode = "MONEY_MAKER"
+            self.ceo_agent.active_mandate = "BALANCED_DAILY_MULTI_SETUP_ALPHA"
+            logger.info("[CoreAgent] 💰 MONEY MAKER MODE ENGAGED! Multi-asset intraday scanning active. Top 3-5 setups executed with dynamic profit targets.")
         else:
-            self.ceo_agent.active_mandate = "BALANCED_CAPITAL_GROWTH"
-            logger.info("[CoreAgent] 🛡️ CONSERVATIVE SAFE MODE ENGAGED. Steady trend structure and capital preservation active.")
+            self.trading_mode = "SAFE"
+            self.ceo_agent.active_mandate = "INSTITUTIONAL_CAPITAL_PRESERVATION"
+            logger.info("[CoreAgent] 🛡️ SAFE MODE ENGAGED. Institutional sniper setup filter active (70% win-rate target, 1 trade / 3-5 hrs).")
+
+        self.system_state["trading_mode"] = self.trading_mode
+        self.risk_agent.set_mode(self.trading_mode)
 
     def start(self):
         """Starts the autonomous trading loop"""
@@ -283,11 +290,20 @@ class CoreTradingAgent:
         upguard_defense = self.execution_agent.intercept_breaking_macro_news(news_report)
         self.system_state["latest_upguard_verdict"] = upguard_defense
 
-        # Step 2: Institutional Multi-Chart Screener:
-        # Scans multiple company/asset charts across the selected market (or ALL markets),
-        # filters out unpredictable, erratic, illiquid, or choppy charts, and crowns the #1 safest chart!
-        # In WILD_MODE: prioritizes explosive momentum, news fuel, and 5m intraday agility.
-        scan_timeframe = "5m" if self.trading_mode == "WILD_MODE" else "15m"
+        # Step 2: Multi-Chart Screener tuned to active regime:
+        # - DANGEROUS: 5m high-velocity setup screening, relaxed threshold (>=42 pts) for fast evolution.
+        # - MONEY_MAKER: 5m multi-asset intraday scanning, balanced threshold (>=60 pts) for top 3-5 setups.
+        # - SAFE: 15m steady trend confluence, institutional threshold (>=75 pts) for ~70% win-rate.
+        if self.trading_mode == "DANGEROUS":
+            scan_timeframe = "5m"
+            chart_label = "⚡ Dangerous Evolution Setup"
+        elif self.trading_mode == "MONEY_MAKER":
+            scan_timeframe = "5m"
+            chart_label = "💰 Money Maker Intraday Setup"
+        else:
+            scan_timeframe = "15m"
+            chart_label = "🛡️ Institutional Safe Setup"
+
         screener_report = self.analytical_agent.screen_and_select_best_chart(
             market=self.selected_market,
             news_bias=news_report.get("macro_bias", "NEUTRAL"),
@@ -299,7 +315,6 @@ class CoreTradingAgent:
         active_market = best_chart.get("market", self.selected_market)
         primary_symbol = best_chart.get("symbol", "BTC")
 
-        chart_label = "Explosive Volatile Chart" if self.trading_mode == "WILD_MODE" else "Safest Predictable Chart"
         logger.info(
             f"[CoreAgent] 🎯 Best {chart_label} Chosen: {active_market}:{primary_symbol} "
             f"(Score: {best_chart.get('safety_score', 0.0)}/100 | {best_chart.get('status')} | "
@@ -469,7 +484,8 @@ class CoreTradingAgent:
                 in_killzone=False,
                 adx_value=adx_val,
                 analytical_report=analytical_report,
-                is_news_pending=False
+                is_news_pending=False,
+                trading_mode=self.trading_mode
             )
 
         # Step 11: Tick All Active Shadow Clones (Naruto Multi-Market Concurrency)

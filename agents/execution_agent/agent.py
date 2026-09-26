@@ -86,7 +86,8 @@ class ExecutionAgent:
         trade_type: str = "INTRADAY",
         analytical_report: Optional[Dict[str, Any]] = None,
         is_news_pending: bool = False,
-        simulated_time: Optional[datetime.datetime] = None
+        simulated_time: Optional[datetime.datetime] = None,
+        trading_mode: str = "SAFE"
     ) -> Dict[str, Any]:
         """
         Executes order after passing all 50-Year Master Trader filters:
@@ -195,7 +196,8 @@ class ExecutionAgent:
             atr_pct=atr_pct,
             in_killzone=session_eval["is_killzone"],
             adx_value=adx_value,
-            trade_type=trade_type
+            trade_type=trade_type,
+            trading_mode=trading_mode
         )
 
         self.daily_trades_count += 1

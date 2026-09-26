@@ -1117,11 +1117,25 @@ body.hacker-night-mode {
   box-shadow: 0 0 20px rgba(0, 242, 254, 0.8);
 }
 
-.hk-wild-mode-btn.wild {
-  background: linear-gradient(135deg, #300c02, #5c1800);
-  border: 1px solid #ff6600;
+.hk-wild-mode-btn.moneymaker {
+  background: linear-gradient(135deg, #2a1804, #4a2806);
+  border: 1px solid #ffaa00;
   color: #ffaa00;
-  box-shadow: 0 0 16px rgba(255, 102, 0, 0.6);
+  box-shadow: 0 0 12px rgba(255, 170, 0, 0.35);
+}
+
+.hk-wild-mode-btn.moneymaker:hover {
+  background: #ffaa00;
+  color: #000000;
+  box-shadow: 0 0 22px rgba(255, 170, 0, 0.9);
+}
+
+.hk-wild-mode-btn.dangerous,
+.hk-wild-mode-btn.wild {
+  background: linear-gradient(135deg, #300808, #5c0f16);
+  border: 1px solid #ff2255;
+  color: #ff4d6d;
+  box-shadow: 0 0 16px rgba(255, 34, 85, 0.6);
   animation: hkWildPulse 1.8s infinite ease-in-out;
 }
 
@@ -1129,20 +1143,21 @@ body.hacker-night-mode {
 
   0%,
   100% {
-    box-shadow: 0 0 12px rgba(255, 102, 0, 0.5);
+    box-shadow: 0 0 12px rgba(255, 34, 85, 0.5);
     transform: scale(1);
   }
 
   50% {
-    box-shadow: 0 0 24px rgba(255, 102, 0, 0.9);
+    box-shadow: 0 0 24px rgba(255, 34, 85, 0.9);
     transform: scale(1.02);
   }
 }
 
+.hk-wild-mode-btn.dangerous:hover,
 .hk-wild-mode-btn.wild:hover {
-  background: #ff6600;
-  color: #000000;
-  box-shadow: 0 0 28px rgba(255, 102, 0, 1);
+  background: #ff2255;
+  color: #ffffff;
+  box-shadow: 0 0 28px rgba(255, 34, 85, 1);
 }
 
 /* Market Status Badge (Open vs Closed) */
@@ -1342,6 +1357,7 @@ body.hacker-night-mode {
   border-radius: 12px;
   width: 650px;
   max-width: 95vw;
+  max-height: 88vh;
   box-shadow: 0 0 35px rgba(0, 255, 102, 0.25), 0 20px 40px rgba(0, 0, 0, 0.9);
   display: flex;
   flex-direction: column;
@@ -1448,8 +1464,26 @@ body.hacker-night-mode {
 }
 
 .hk-wizard-body {
-  padding: 24px;
-  min-height: 260px;
+  padding: 20px 24px;
+  min-height: 200px;
+  max-height: calc(88vh - 145px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.hk-wizard-body::-webkit-scrollbar {
+  width: 6px;
+}
+.hk-wizard-body::-webkit-scrollbar-track {
+  background: #060d16;
+}
+.hk-wizard-body::-webkit-scrollbar-thumb {
+  background: #1e3524;
+  border-radius: 3px;
+}
+.hk-wizard-body::-webkit-scrollbar-thumb:hover {
+  background: #00ff66;
 }
 
 .hk-step-panel {
@@ -1548,9 +1582,13 @@ body.hacker-night-mode {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 14px 20px;
   background: #060d16;
   border-top: 1px solid #14281a;
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
 }
 
 .hk-btn-ghost {
@@ -3497,4 +3535,95 @@ body.hacker-night-mode {
   background: rgba(148, 163, 184, 0.1);
   color: #94a3b8;
   border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+/* ==========================================================================
+   3-MODE DEDICATED PORTFOLIO STYLES (SAFE, MONEY MAKER, DANGEROUS)
+   ========================================================================== */
+.hk-mode-hero-card {
+  background: linear-gradient(135deg, #050d18 0%, #03080e 100%);
+  border: 1px solid #14281a;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.hk-mode-hero-card.safe {
+  border-color: rgba(0, 242, 254, 0.4);
+  box-shadow: 0 0 25px rgba(0, 242, 254, 0.12), inset 0 0 20px rgba(0, 242, 254, 0.05);
+}
+
+.hk-mode-hero-card.moneymaker {
+  border-color: rgba(255, 170, 0, 0.4);
+  box-shadow: 0 0 25px rgba(255, 170, 0, 0.12), inset 0 0 20px rgba(255, 170, 0, 0.05);
+}
+
+.hk-mode-hero-card.dangerous {
+  border-color: rgba(255, 34, 85, 0.5);
+  box-shadow: 0 0 30px rgba(255, 34, 85, 0.18), inset 0 0 20px rgba(255, 34, 85, 0.06);
+}
+
+.hk-mode-hero-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.hk-mode-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hk-mode-badge-tag {
+  font-family: var(--hk-font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.hk-mode-badge-tag.safe {
+  background: rgba(0, 242, 254, 0.15);
+  color: #00f2fe;
+  border: 1px solid #00f2fe;
+}
+
+.hk-mode-badge-tag.moneymaker {
+  background: rgba(255, 170, 0, 0.15);
+  color: #ffaa00;
+  border: 1px solid #ffaa00;
+}
+
+.hk-mode-badge-tag.dangerous {
+  background: rgba(255, 34, 85, 0.2);
+  color: #ff4d6d;
+  border: 1px solid #ff2255;
+  animation: hkWildPulse 2s infinite ease-in-out;
+}
+
+.hk-mode-synergy-banner {
+  background: rgba(14, 28, 44, 0.6);
+  border: 1px dashed rgba(0, 255, 102, 0.3);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.hk-mode-synergy-banner strong {
+  color: #00ff66;
 }

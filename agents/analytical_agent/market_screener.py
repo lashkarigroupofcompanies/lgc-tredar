@@ -107,7 +107,8 @@ class MultiChartScreener:
         """Returns candidate ticker list for a market or across ALL major markets."""
         market_upper = market.upper()
         candidates = []
-        is_wild = "WILD" in mode.upper()
+        clean_mode = mode.upper()
+        is_wild = "WILD" in clean_mode or "DANGEROUS" in clean_mode
         universe_source = self.WILD_UNIVERSE_MAP if is_wild else self.UNIVERSE_MAP
 
         if market_upper in ["ALL", "ALL_THREE", "MULTI_MARKET", "TOTAL"]:
@@ -271,12 +272,26 @@ class MultiChartScreener:
 
         total_score = trend_cleanliness + structure_clarity_score + volatility_score + volume_score + news_synergy_score
 
-        # Status Classification
+        clean_mode = mode.upper()
+        if "DANGEROUS" in clean_mode or "WILD" in clean_mode:
+            op_mode = "DANGEROUS"
+        elif "MONEY" in clean_mode or "MAKER" in clean_mode:
+            op_mode = "MONEY_MAKER"
+        else:
+            op_mode = "SAFE"
+
         if is_wild:
-            if total_score >= 70.0 and volatility_status != "TOO_SLOW_FOR_WILD_MODE":
-                status = "WILD_EXPLOSIVE_MOMENTUM"
-            elif total_score >= 50.0 and volatility_status != "TOO_SLOW_FOR_WILD_MODE":
-                status = "WILD_ACCEPTABLE"
+            if total_score >= 42.0 and volatility_status != "TOO_SLOW_FOR_WILD_MODE":
+                status = "DANGEROUS_MICRO_OPPORTUNITY"
+            elif total_score >= 30.0:
+                status = "DANGEROUS_WATCHLIST"
+            else:
+                status = "UNPREDICTABLE_REJECTED"
+        elif op_mode == "MONEY_MAKER":
+            if total_score >= 60.0 and volatility_status not in ["DEAD_FLAT_CHART", "HYPER_ERRATIC_CHART"]:
+                status = "MONEY_MAKER_QUALIFIED"
+            elif total_score >= 45.0:
+                status = "ACCEPTABLE"
             else:
                 status = "UNPREDICTABLE_REJECTED"
         else:
@@ -290,7 +305,7 @@ class MultiChartScreener:
         return {
             "symbol": symbol,
             "market": market,
-            "mode": mode,
+            "mode": op_mode,
             "safety_score": round(total_score, 1),
             "status": status,
             "trend_clarity": "BULLISH_TREND" if trend_aligned_bull else ("BEARISH_TREND" if trend_aligned_bear else "RANGING_OR_CHOP"),
@@ -298,7 +313,7 @@ class MultiChartScreener:
             "atr_pct": round(atr_pct, 2),
             "volatility_status": volatility_status,
             "current_price": round(float(curr_price), 2),
-            "rejection_reason": None if status != "UNPREDICTABLE_REJECTED" else f"Low suitability score ({total_score:.1f}) with {volatility_status} in {mode}."
+            "rejection_reason": None if status != "UNPREDICTABLE_REJECTED" else f"Low suitability score ({total_score:.1f}) with {volatility_status} in {op_mode} mode."
         }
 
     def select_best_and_safest_chart(
@@ -348,10 +363,11 @@ class MultiChartScreener:
 
         return {
             "best_chart": safest_chart,
+            "top_candidate_charts": [r for r in screened_results if r["status"] != "UNPREDICTABLE_REJECTED"][:5],
             "all_screened_charts": screened_results,
             "mode": mode,
-            "qualified_count": sum(1 for r in screened_results if "ACCEPTABLE" in r["status"] or "SAFE" in r["status"] or "WILD" in r["status"]),
-            "safe_count": sum(1 for r in screened_results if "ACCEPTABLE" in r["status"] or "SAFE" in r["status"] or "WILD" in r["status"]),
+            "qualified_count": sum(1 for r in screened_results if "ACCEPTABLE" in r["status"] or "SAFE" in r["status"] or "WILD" in r["status"] or "QUALIFIED" in r["status"] or "OPPORTUNITY" in r["status"]),
+            "safe_count": sum(1 for r in screened_results if "ACCEPTABLE" in r["status"] or "SAFE" in r["status"] or "WILD" in r["status"] or "QUALIFIED" in r["status"] or "OPPORTUNITY" in r["status"]),
             "rejected_count": sum(1 for r in screened_results if r["status"] == "UNPREDICTABLE_REJECTED"),
             "timestamp": pd.Timestamp.now().isoformat()
         }
