@@ -48,6 +48,7 @@ class CoreTradingAgent:
         self.board = SharedAgentBoard()
         self.calc = OmniCalculator(owner="CoreTradingAgent")
         self.is_running = False
+        self.selected_market = "CRYPTO"  # CRYPTO | INDIAN_STOCKS | US_STOCKS
         self.trading_mode = "SAFE"  # SAFE | MONEY_MAKER | DANGEROUS
         
         # Initialize Subsystem Agents connected to Shared Board
