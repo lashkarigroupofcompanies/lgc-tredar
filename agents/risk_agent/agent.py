@@ -239,8 +239,9 @@ class RiskManagementAgent:
             (getattr(self, "active_mode", "CONSERVATIVE_SAFE") == "WILD_MODE") or
             is_expansion
         )
+        is_dangerous = is_wild_mode or "DANGEROUS" in str(proposal.get("trading_mode") or getattr(self, "active_mode", "SAFE")).upper()
 
-        mode_str = " [🔥 WILD MODE ENGAGED (Volatility Expansion)]" if (is_wild_mode and is_expansion) else (" [🔥 WILD MODE ENGAGED]" if is_wild_mode else "")
+        mode_str = " [🔥 WILD/DANGEROUS MODE ENGAGED (Volatility Expansion)]" if (is_dangerous and is_expansion) else (" [🔥 DANGEROUS/WILD MODE ENGAGED]" if is_dangerous else "")
         logger.info(f"[RiskAgent] === RUNNING 15-SECTION RISK AUDIT for [{direction} {symbol}]{mode_str} at ${entry_price:,.2f} ===")
 
         # -------------------------------------------------------------
@@ -407,14 +408,19 @@ class RiskManagementAgent:
         # -------------------------------------------------------------
         trap_info = proposal.get("trap_analysis") or {}
         if trap_info.get("recommended_action") == "VETO_TRADE":
-            logger.warning(f"[RiskAgent] 🛑 Trade REJECTED by Trap Detector: {trap_info.get('veto_reason')}")
-            return {
-                "decision": "REJECTED",
-                "risk_tier": "BLOCKED",
-                "reason": trap_info.get("veto_reason", "INSTITUTIONAL_LIQUIDITY_TRAP_DETECTED"),
-                "section": "SECTION_15_TRAP_AVOIDANCE",
-                "trap_details": trap_info
-            }
+            if not is_dangerous:
+                logger.warning(f"[RiskAgent] 🛑 Trade REJECTED by Trap Detector: {trap_info.get('veto_reason')}")
+                return {
+                    "decision": "REJECTED",
+                    "risk_tier": "BLOCKED",
+                    "reason": trap_info.get("veto_reason", "INSTITUTIONAL_LIQUIDITY_TRAP_DETECTED"),
+                    "section": "SECTION_15_TRAP_AVOIDANCE",
+                    "trap_details": trap_info
+                }
+            else:
+                logger.info(f"[RiskAgent] ⚡ DANGEROUS MODE TRAP LEARNING: Throttling risk 50% for micro-scalp.")
+                assigned_risk_pct = max(0.20, round(assigned_risk_pct * 0.50, 2))
+                tier += "_DANGEROUS_TRAP_LEARNING_SCALP"
         elif trap_info.get("recommended_action") == "PROCEED_WITH_CAUTION_THROTTLE_50":
             logger.info(f"[RiskAgent] ⚠️ Moderate trap caution: Throttling risk by 50%.")
             assigned_risk_pct = max(0.25, round(assigned_risk_pct * 0.50, 2))

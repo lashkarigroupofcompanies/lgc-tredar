@@ -158,6 +158,14 @@ class ExecutionAgent:
         ltf_structure_shift = (ar.get("structure_shift_choch") is not False)
         sl_and_rr_valid = (stop_loss > 0.0 and abs(entry_price - stop_loss) > 0.0)
 
+        if units <= 0.0:
+            sl_dist = abs(entry_price - stop_loss)
+            if sl_dist > 0.0:
+                pos_cap = 500000.0 * (risk_pct / 100.0)
+                units = round(pos_cap / sl_dist, 4)
+            else:
+                units = 1.0
+
         trigger_hierarchy = self.order_router.evaluate_entry_trigger_hierarchy(
             htf_bias_aligned=htf_bias_aligned,
             price_at_key_level=price_at_key_level,
@@ -166,7 +174,8 @@ class ExecutionAgent:
             displacement_candle=displacement_candle,
             candlestick_pattern_confirmed=candlestick_pattern_confirmed,
             ltf_structure_shift=ltf_structure_shift,
-            sl_defined_and_rr_valid=sl_and_rr_valid
+            sl_defined_and_rr_valid=sl_and_rr_valid,
+            mode=trading_mode
         )
 
         if not trigger_hierarchy["can_enter"]:

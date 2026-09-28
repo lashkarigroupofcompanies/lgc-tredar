@@ -3,7 +3,7 @@ LGC Trading Engine & Hacker Desk Version Specifications
 Automated version source of truth for desktop builds and GitHub releases.
 """
 
-APP_VERSION = "2.15.0"
+APP_VERSION = "2.16.0"
 APP_NAME = "LGC Trader"
 GITHUB_REPO = "lashkarigroupofcompanies/lgc-tredar"
 GITHUB_RELEASES_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"

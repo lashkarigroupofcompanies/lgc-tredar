@@ -363,24 +363,76 @@ class MultiChartScreener:
         except Exception:
             recent_failed_syms = set()
 
-        for r in screened_results:
-            if r.get("symbol", "").upper() in recent_failed_syms:
-                r["under_mistake_shield"] = True
-                r["safety_score"] = max(0.0, r.get("safety_score", 50.0) - 20.0)
-                if r.get("status") != "UNPREDICTABLE_REJECTED":
-                    r["status"] = "MISTAKE_GUARD_COOLING"
+        # Institutional Market Session Gatekeeper:
+        # Prioritize markets that are actively OPEN right now.
+        # Priority order among currently open markets:
+        # 1. INDIAN_STOCKS (Top priority when Indian session is open)
+        # 2. US_STOCKS (Top priority when US session is open)
+        # 3. UK_STOCKS / EU_STOCKS / ASIAN_STOCKS
+        # 4. COMMODITIES / FOREX
+        # 5. CRYPTO (24/7 continuous liquid baseline)
+        try:
+            from agents.execution_agent.session_timing_controller import SessionTimingController
+        except Exception:
+            SessionTimingController = None
 
-        # Sort descending by safety_score
-        screened_results.sort(key=lambda x: x["safety_score"], reverse=True)
+        MARKET_RANKS = {
+            "INDIAN_STOCKS": 1,
+            "US_STOCKS": 2,
+            "UK_STOCKS": 3,
+            "EU_STOCKS": 3,
+            "ASIAN_STOCKS": 3,
+            "COMMODITIES": 4,
+            "FOREX": 4,
+            "CRYPTO": 5
+        }
+
+        for r in screened_results:
+            mkt_str = str(r.get("market", "")).upper()
+            is_open = True
+            session_name = "ACTIVE"
+            if SessionTimingController:
+                try:
+                    s_info = SessionTimingController.evaluate_session_timing(mkt_str)
+                    is_open = bool(s_info.get("can_execute", False))
+                    session_name = s_info.get("session_name", "ACTIVE")
+                except Exception:
+                    is_open = True
+            
+            r["is_market_open"] = is_open
+            r["session_name"] = session_name
+            r["market_priority_rank"] = MARKET_RANKS.get(mkt_str, 6)
+
+            if not is_open:
+                # Mark as standby so it doesn't take priority over open markets
+                r["market_closed"] = True
+                if r.get("status") not in ["UNPREDICTABLE_REJECTED", "UNPREDICTABLE_INSUFFICIENT_DATA"]:
+                    r["status"] = "MARKET_CLOSED_STANDBY"
+                r["rejection_reason"] = r.get("rejection_reason") or f"Exchange session currently closed ({session_name})."
+
+        # Multi-factor Institutional Ranking:
+        # 1. Is Market Currently Open? (Open markets strictly rank above closed markets)
+        # 2. Market Priority (Indian Stocks #1 when open, then US, then Europe/Asia, then FX/Comm, then Crypto)
+        # 3. Predictability / Safety Score (Higher is better)
+        def market_priority_key(x):
+            is_open = 1 if x.get("is_market_open", True) else 0
+            # Higher negative rank is better (i.e. -1 > -2 > -5)
+            rank_score = -int(x.get("market_priority_rank", 6))
+            score = float(x.get("safety_score", 0.0))
+            return (is_open, rank_score, score)
+
+        screened_results.sort(key=market_priority_key, reverse=True)
 
         safest_chart = screened_results[0] if screened_results else {
             "symbol": "BTC",
             "market": "CRYPTO",
             "safety_score": 50.0,
-            "status": "ACCEPTABLE"
+            "status": "ACCEPTABLE",
+            "is_market_open": True
         }
 
-        logger.info(f"[MarketScreener] 👑 Crowned Best Setup for {mode}: {safest_chart['market']}:{safest_chart['symbol']} (Score: {safest_chart['safety_score']}/100 | {safest_chart['status']})")
+        open_str = "🟢 OPEN" if safest_chart.get("is_market_open") else "🔴 CLOSED"
+        logger.info(f"[MarketScreener] 👑 Crowned Best Setup for {mode}: {safest_chart['market']}:{safest_chart['symbol']} ({open_str} | Score: {safest_chart['safety_score']}/100 | {safest_chart['status']})")
 
         return {
             "best_chart": safest_chart,

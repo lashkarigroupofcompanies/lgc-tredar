@@ -57,7 +57,8 @@ class OrderRoutingEngine:
         candlestick_pattern_confirmed: bool,
         ltf_structure_shift: bool,
         sl_defined_and_rr_valid: bool = True,
-        sl_and_rr_valid: Optional[bool] = None
+        sl_and_rr_valid: Optional[bool] = None,
+        mode: str = "SAFE"
     ) -> Dict[str, Any]:
         """
         Evaluates the 8-Tier Entry Trigger Hierarchy.
@@ -78,6 +79,7 @@ class OrderRoutingEngine:
         }
 
         score = sum(1 for passed in tier_checks.values() if passed)
+        is_dangerous = "DANGEROUS" in str(mode).upper() or "WILD" in str(mode).upper()
 
         if score == 8:
             rating = "PERFECT_SETUP"
@@ -91,6 +93,10 @@ class OrderRoutingEngine:
             rating = "ACCEPTABLE"
             can_enter = True
             action = "CONSERVATIVE_REDUCED_SIZE"
+        elif is_dangerous and score >= 2:
+            rating = "DANGEROUS_MICRO_SCALP"
+            can_enter = True
+            action = "FAST_MOMENTUM_SCALP"
         else:
             rating = "SUBPAR_NO_EDGE"
             can_enter = False

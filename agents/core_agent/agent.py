@@ -367,17 +367,39 @@ class CoreTradingAgent:
             chart_label = "💰 Money Maker Intraday Setup"
         else:
             scan_timeframe = "15m"
-            chart_label = "🛡️ Institutional Safe Setup"
+        # Institutional Market Session Gate:
+        # If the user selected a single market that is currently closed, but engine is running in
+        # DANGEROUS mode or ALL mode, dynamically focus on the highest-priority OPEN market!
+        target_scan_market = self.selected_market
+        try:
+            from agents.execution_agent.session_timing_controller import SessionTimingController
+            if target_scan_market.upper() not in ["ALL", "ALL_THREE", "MULTI_MARKET", "TOTAL"]:
+                s_check = SessionTimingController.evaluate_session_timing(target_scan_market)
+                if not s_check.get("can_execute", False):
+                    # Market is currently closed! Find highest priority open market
+                    open_mkts = [
+                        m for m in ["INDIAN_STOCKS", "US_STOCKS", "CRYPTO", "FOREX", "COMMODITIES"]
+                        if SessionTimingController.evaluate_session_timing(m).get("can_execute", False)
+                    ]
+                    if open_mkts:
+                        prev_mkt = target_scan_market
+                        target_scan_market = open_mkts[0]
+                        logger.info(
+                            f"[CoreAgent] ⚡ OPEN-MARKET ROUTER: {prev_mkt} is currently closed ({s_check.get('session_name')}). "
+                            f"Auto-routing scanning focus to top OPEN market: {target_scan_market}!"
+                        )
+        except Exception as e:
+            logger.debug(f"[CoreAgent] Session routing check deferred: {e}")
 
         screener_report = self.analytical_agent.screen_and_select_best_chart(
-            market=self.selected_market,
+            market=target_scan_market,
             news_bias=news_report.get("macro_bias", "NEUTRAL"),
             timeframe=scan_timeframe,
             mode=self.trading_mode
         )
         self.system_state["screener_report"] = screener_report
         best_chart = screener_report.get("best_chart", {})
-        active_market = best_chart.get("market", self.selected_market)
+        active_market = best_chart.get("market", target_scan_market)
         primary_symbol = best_chart.get("symbol", "BTC")
 
         # Telemetry: Log candidate charts visited
@@ -502,9 +524,20 @@ class CoreTradingAgent:
         )
 
         # Step 8: 15-Section Risk Management Shield Audit (with Depth 2/3 Trap & Intermarket Gates)
-        strat_act = strategy_decision.get("recommended_action") or strategy_decision.get("action", "WAIT")
-        is_active_order = strat_act in ["BUY", "SELL", "ENTER_LONG", "ENTER_SHORT"]
-        strat_dir = "SHORT" if strat_act in ["SELL", "ENTER_SHORT"] else (strategy_decision.get("direction") or "LONG")
+        strat_rec = str(strategy_decision.get("recommended_action", "WAIT")).upper()
+        strat_raw_act = str(strategy_decision.get("action", "WAIT")).upper()
+        strat_dir = str(strategy_decision.get("direction", "LONG")).upper()
+        if strat_raw_act in ["SELL", "SHORT", "ENTER_SHORT"]:
+            strat_dir = "SHORT"
+        elif strat_raw_act in ["BUY", "LONG", "ENTER_LONG"]:
+            strat_dir = "LONG"
+
+        is_active_order = (
+            strat_rec in ["EXECUTE", "BUY", "SELL", "ENTER_LONG", "ENTER_SHORT", "EXECUTE_MICRO_SCALP"] or
+            strat_raw_act in ["BUY", "SELL", "ENTER_LONG", "ENTER_SHORT"]
+        ) and strat_rec != "WAIT" and strat_raw_act != "WAIT"
+        
+        strat_act = strat_raw_act if strat_raw_act in ["BUY", "SELL"] else (strat_dir if is_active_order else "WAIT")
         
         intermarket_implications = self.intermarket.get_cross_market_implications(
             market=active_market,
@@ -518,17 +551,18 @@ class CoreTradingAgent:
         raw_tp1 = float(strategy_decision.get("take_profit_1") or analytical_report.get("suggested_tp") or 0.0)
         
         atr_val = float(analytical_report.get("atr_volatility", {}).get("atr") or (entry_p * 0.015))
-        min_sl_dist = max(atr_val * 1.5, entry_p * 0.006)
+        # Ensure minimum safe structural buffer: at least 1.5x ATR and at least 0.6% of entry price
+        min_sl_dist = max(atr_val * 1.5, entry_p * 0.008)
         
         # Enforce strict geometric validity: Long SL < Entry < Long TP, Short TP < Entry < Short SL
         if strat_dir == "LONG":
-            sl_price = raw_sl if (0 < raw_sl < entry_p) else round(entry_p - min_sl_dist, 2)
-            risk_dist = entry_p - sl_price
-            tp_price = raw_tp1 if (raw_tp1 > entry_p) else round(entry_p + (risk_dist * 2.0), 2)
+            sl_price = raw_sl if (0 < raw_sl < entry_p and (entry_p - raw_sl) >= min_sl_dist) else round(entry_p - min_sl_dist, 2)
+            risk_dist = max(entry_p - sl_price, min_sl_dist)
+            tp_price = raw_tp1 if (raw_tp1 > entry_p and (raw_tp1 - entry_p) >= risk_dist * 1.5) else round(entry_p + (risk_dist * 2.0), 2)
         else:
-            sl_price = raw_sl if (raw_sl > entry_p) else round(entry_p + min_sl_dist, 2)
-            risk_dist = sl_price - entry_p
-            tp_price = raw_tp1 if (0 < raw_tp1 < entry_p) else round(entry_p - (risk_dist * 2.0), 2)
+            sl_price = raw_sl if (raw_sl > entry_p and (raw_sl - entry_p) >= min_sl_dist) else round(entry_p + min_sl_dist, 2)
+            risk_dist = max(sl_price - entry_p, min_sl_dist)
+            tp_price = raw_tp1 if (0 < raw_tp1 < entry_p and (entry_p - raw_tp1) >= risk_dist * 1.5) else round(entry_p - (risk_dist * 2.0), 2)
 
         proposal = {
             "symbol": primary_symbol,
