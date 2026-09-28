@@ -367,6 +367,7 @@ class CoreTradingAgent:
             chart_label = "💰 Money Maker Intraday Setup"
         else:
             scan_timeframe = "15m"
+            chart_label = "🛡️ Safe Institutional Setup"
         # Institutional Market Session Gate:
         # If the user selected a single market that is currently closed, but engine is running in
         # DANGEROUS mode or ALL mode, dynamically focus on the highest-priority OPEN market!
