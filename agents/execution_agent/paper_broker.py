@@ -83,8 +83,22 @@ class PaperBroker:
         self.trade_history: List[Dict[str, Any]] = []
         self._hydrate_from_cloud()
 
+    def _get_positions_file(self) -> str:
+        app_dir = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "LGCTrader")
+        os.makedirs(app_dir, exist_ok=True)
+        return os.path.join(app_dir, "open_positions.json")
+
+    def _save_open_positions(self):
+        """Persists open positions to local disk JSON cache."""
+        try:
+            p_file = self._get_positions_file()
+            with open(p_file, "w", encoding="utf-8") as f:
+                json.dump(self.open_positions, f, indent=2)
+        except Exception as e:
+            logger.debug(f"[PaperBroker] Local open positions save notice: {e}")
+
     def _hydrate_from_cloud(self):
-        """Hydrates past closed trades from Turso Cloud Database on initialization."""
+        """Hydrates past closed trades and active open positions from Turso Cloud Database and local persistence."""
         try:
             from shared_brain.turso_sync import turso_client
             cloud_trades = turso_client.get_all_trades()
@@ -93,8 +107,29 @@ class PaperBroker:
                 total_realized_pnl = sum(float(t.get("realized_pnl", t.get("pnl", 0.0))) for t in self.trade_history)
                 self.balance = self.starting_balance + total_realized_pnl
                 logger.info(f"[PaperBroker] Hydrated {len(self.trade_history)} trades from Turso Cloud. Adjusted Balance: ₹{self.balance:,.2f}")
+            
+            # Hydrate active open positions from Turso Cloud
+            cloud_positions = turso_client.get_all_open_positions()
+            if cloud_positions:
+                for cp in cloud_positions:
+                    p_id = cp.get("trade_id") or cp.get("id")
+                    if p_id:
+                        self.open_positions[p_id] = cp
+                logger.info(f"[PaperBroker] Hydrated {len(self.open_positions)} active open positions from Turso Cloud.")
+            else:
+                # Fallback to local disk cache if cloud had 0
+                p_file = self._get_positions_file()
+                if os.path.exists(p_file):
+                    try:
+                        with open(p_file, "r", encoding="utf-8") as f:
+                            local_pos = json.load(f)
+                            if local_pos and isinstance(local_pos, dict):
+                                self.open_positions = local_pos
+                                logger.info(f"[PaperBroker] Hydrated {len(self.open_positions)} open positions from local cache.")
+                    except Exception as fe:
+                        logger.debug(f"[PaperBroker] Local position cache load notice: {fe}")
         except Exception as e:
-            logger.warning(f"[PaperBroker] Cloud trade hydration deferred: {e}")
+            logger.warning(f"[PaperBroker] Cloud trade/position hydration deferred: {e}")
 
     def reset(self, starting_balance: float = 500000.0, per_market_capital: float = 100000.0):
         """Cleans out open positions and trade history and re-allocates starting capital (₹1,00,000 per market, ₹5,00,000 per mode)."""
@@ -108,6 +143,7 @@ class PaperBroker:
         self.starting_balance = float(sum(self.market_starting_cap.values()))
         self.balance = self.starting_balance
         self.open_positions = {}
+        self._save_open_positions()
         self.trade_history = []
         logger.info(f"[PaperBroker] Account reset to ₹1,00,000 per market and ₹5,00,000 per mode (Total Starting: ₹{self.starting_balance:,.2f})")
 
@@ -390,6 +426,15 @@ class PaperBroker:
         }
 
         self.open_positions[trade_id] = position
+        self._save_open_positions()
+
+        # Cloud Edge Sync for Active Open Position
+        try:
+            from shared_brain.turso_sync import turso_client
+            turso_client.sync_open_position(position)
+        except Exception as te:
+            logger.debug(f"[PaperBroker] Cloud open position sync notice: {te}")
+
         LiveTradeWorkingMemory().activate_trade(position)
         logger.info(
             f"[PaperBroker] 🚀 POSITION OPENED [{direction} {symbol}] at ${exec_price:,.2f} "
@@ -467,6 +512,14 @@ class PaperBroker:
 
         self.trade_history.append(closed_record)
         del self.open_positions[trade_id]
+        self._save_open_positions()
+
+        # Cloud Edge Deletion from open_positions table
+        try:
+            from shared_brain.turso_sync import turso_client
+            turso_client.delete_open_position(trade_id)
+        except Exception as de:
+            logger.debug(f"[PaperBroker] Cloud open position delete notice: {de}")
 
         LiveTradeWorkingMemory().close_and_archive_trade(closed_record)
         Mem0MemoryEngine().record_episodic_trade(closed_record)

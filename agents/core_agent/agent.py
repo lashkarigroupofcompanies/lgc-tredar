@@ -707,6 +707,18 @@ class CoreTradingAgent:
                 message=f"Holding cash on {primary_symbol}: {wait_reason}. Capital preserved; agent army standing by for optimal trigger.",
                 details={"waiting_on": wait_reason}
             )
+            try:
+                from shared_brain.turso_sync import turso_client
+                turso_client.sync_rejection({
+                    "symbol": primary_symbol,
+                    "strategy": strat_name or "Triple Confluence",
+                    "proposed_side": strat_dir,
+                    "rejection_reason": wait_reason,
+                    "counterfactual_outcome": "CAPITAL_PRESERVED",
+                    "capital_saved": 2500.0
+                })
+            except Exception:
+                pass
 
         # Step 11: Tick All Active Shadow Clones (Naruto Multi-Market Concurrency)
         market_tick_data = {

@@ -359,7 +359,7 @@ class LLMBrain:
                 "messages": [{"role": "user", "content": prompt}]
             }
             try:
-                resp = requests.post(f"{url.rstrip('/')}/messages", headers=headers, json=payload, timeout=20)
+                resp = requests.post(f"{url.rstrip('/')}/messages", headers=headers, json=payload, timeout=3.5)
                 if resp.status_code == 200:
                     data = resp.json()
                     return data.get("content", [{}])[0].get("text", "")
@@ -367,7 +367,7 @@ class LLMBrain:
                     logger.error(f"[LLMBrain] Anthropic API HTTP {resp.status_code}: {resp.text}")
                     return self._local_fallback(prompt)
             except Exception as e:
-                logger.error(f"[LLMBrain] Anthropic request exception: {e}")
+                logger.warning(f"[LLMBrain] Anthropic request timed out / exception, using fast quant fallback: {e}")
                 return self._local_fallback(prompt)
 
         # -------------------------------------------------------------
@@ -395,7 +395,7 @@ class LLMBrain:
         endpoint = f"{url.rstrip('/')}/chat/completions" if not url.endswith("/chat/completions") else url
 
         try:
-            resp = requests.post(endpoint, headers=headers, json=payload, timeout=20)
+            resp = requests.post(endpoint, headers=headers, json=payload, timeout=3.5)
             if resp.status_code == 200:
                 data = resp.json()
                 choices = data.get("choices", [])
@@ -406,7 +406,7 @@ class LLMBrain:
                 logger.error(f"[LLMBrain] {self.provider} API HTTP {resp.status_code}: {resp.text}")
                 return self._local_fallback(prompt)
         except Exception as e:
-            logger.error(f"[LLMBrain] LLM request exception ({self.provider}): {e}")
+            logger.warning(f"[LLMBrain] LLM request exception/timeout ({self.provider}), fast fallback: {e}")
             return self._local_fallback(prompt)
 
     def analyze_news_signals(self, news_items: List[Dict[str, Any]]) -> Dict[str, Any]:

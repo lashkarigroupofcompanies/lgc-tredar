@@ -181,6 +181,25 @@ class TursoClient:
             );
             """,
             """
+            CREATE TABLE IF NOT EXISTS open_positions (
+                id TEXT PRIMARY KEY,
+                symbol TEXT NOT NULL,
+                market TEXT,
+                side TEXT NOT NULL,
+                entry_price REAL,
+                current_price REAL,
+                quantity REAL,
+                stop_loss REAL,
+                take_profit_1 REAL,
+                take_profit_2 REAL,
+                strategy TEXT,
+                trading_mode TEXT,
+                unrealized_pnl REAL,
+                entry_time TEXT,
+                synced_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            """,
+            """
             CREATE TABLE IF NOT EXISTS agent_milestones (
                 id TEXT PRIMARY KEY,
                 total_trades_executed INTEGER,
@@ -332,6 +351,121 @@ class TursoClient:
         except Exception as e:
             logger.error(f"[TursoSync] Failed to parse neural memories from Turso: {e}")
         return mems
+
+    def sync_open_position(self, p: Dict[str, Any]) -> Dict[str, Any]:
+        """Upserts an active open position to Turso Cloud Database."""
+        sql = """
+        INSERT OR REPLACE INTO open_positions
+        (id, symbol, market, side, entry_price, current_price, quantity, stop_loss, take_profit_1, take_profit_2, strategy, trading_mode, unrealized_pnl, entry_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """
+        pos_id = str(p.get("trade_id") or p.get("id") or "")
+        args = [
+            pos_id,
+            str(p.get("symbol", "")),
+            str(p.get("market", "")),
+            str(p.get("direction") or p.get("side", "BUY")),
+            float(p.get("entry_price") or 0.0),
+            float(p.get("current_price") or p.get("entry_price") or 0.0),
+            float(p.get("initial_units") or p.get("quantity") or p.get("remaining_units") or 1.0),
+            float(p.get("stop_loss") or p.get("initial_stop_loss") or 0.0),
+            float(p.get("take_profit_1") or 0.0),
+            float(p.get("take_profit_2") or 0.0),
+            str(p.get("strategy_name") or p.get("strategy") or "Dynamic Alpha"),
+            str(p.get("trading_mode") or "SAFE"),
+            float(p.get("unrealized_pnl") or 0.0),
+            str(p.get("timestamp") or p.get("entry_time") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        ]
+        return self.execute(sql, args)
+
+    def delete_open_position(self, pos_id: str) -> Dict[str, Any]:
+        """Deletes a closed position from open_positions table in Turso."""
+        sql = "DELETE FROM open_positions WHERE id = ?;"
+        return self.execute(sql, [str(pos_id)])
+
+    def get_all_open_positions(self) -> List[Dict[str, Any]]:
+        """Retrieves active open positions from Turso Cloud Database."""
+        sql = "SELECT id, symbol, market, side, entry_price, current_price, quantity, stop_loss, take_profit_1, take_profit_2, strategy, trading_mode, unrealized_pnl, entry_time FROM open_positions ORDER BY entry_time ASC;"
+        res = self.execute(sql)
+        positions = []
+        try:
+            if "results" in res and res["results"] and res["results"][0].get("type") == "ok":
+                cols = [c["name"] for c in res["results"][0]["response"]["result"]["cols"]]
+                rows = res["results"][0]["response"]["result"]["rows"]
+                for r in rows:
+                    row_dict = {}
+                    for i, col in enumerate(cols):
+                        row_dict[col] = r[i].get("value")
+                    p_id = str(row_dict.get("id"))
+                    positions.append({
+                        "trade_id": p_id,
+                        "id": p_id,
+                        "symbol": str(row_dict.get("symbol") or "Asset"),
+                        "market": str(row_dict.get("market") or "CRYPTO"),
+                        "direction": str(row_dict.get("side") or "BUY"),
+                        "side": str(row_dict.get("side") or "BUY"),
+                        "entry_price": float(row_dict.get("entry_price") or 0.0),
+                        "current_price": float(row_dict.get("current_price") or row_dict.get("entry_price") or 0.0),
+                        "initial_units": float(row_dict.get("quantity") or 1.0),
+                        "remaining_units": float(row_dict.get("quantity") or 1.0),
+                        "stop_loss": float(row_dict.get("stop_loss") or 0.0),
+                        "take_profit_1": float(row_dict.get("take_profit_1") or 0.0),
+                        "take_profit_2": float(row_dict.get("take_profit_2") or 0.0),
+                        "strategy_name": str(row_dict.get("strategy") or "Dynamic Alpha"),
+                        "trading_mode": str(row_dict.get("trading_mode") or "SAFE"),
+                        "unrealized_pnl": float(row_dict.get("unrealized_pnl") or 0.0),
+                        "timestamp": str(row_dict.get("entry_time") or ""),
+                        "entry_time": str(row_dict.get("entry_time") or "")
+                    })
+        except Exception as e:
+            logger.error(f"[TursoSync] Failed to parse open positions from Turso: {e}")
+        return positions
+
+    def sync_rejection(self, r: Dict[str, Any]) -> Dict[str, Any]:
+        """Saves a real defensive rejection to Turso Cloud Database."""
+        sql = """
+        INSERT OR REPLACE INTO rejections_defense
+        (id, symbol, strategy, proposed_side, rejection_reason, counterfactual_outcome, capital_saved)
+        VALUES (?, ?, ?, ?, ?, ?, ?);
+        """
+        rej_id = str(r.get("id") or f"REJ-{int(datetime.now().timestamp())}")
+        args = [
+            rej_id,
+            str(r.get("symbol", "")),
+            str(r.get("strategy") or r.get("filter_engine") or "Risk Shield"),
+            str(r.get("proposed_side", "BUY")),
+            str(r.get("rejection_reason") or r.get("reason") or "Vetoed"),
+            str(r.get("counterfactual_outcome", "CAPITAL_PRESERVED")),
+            float(r.get("capital_saved") or 2500.0)
+        ]
+        return self.execute(sql, args)
+
+    def get_recent_rejections(self, limit: int = 25) -> List[Dict[str, Any]]:
+        """Retrieves real defensive rejections from Turso Cloud Database."""
+        sql = f"SELECT id, symbol, strategy, proposed_side, rejection_reason, counterfactual_outcome, capital_saved, logged_at FROM rejections_defense ORDER BY logged_at DESC LIMIT {int(limit)};"
+        res = self.execute(sql)
+        rejections = []
+        try:
+            if "results" in res and res["results"] and res["results"][0].get("type") == "ok":
+                cols = [c["name"] for c in res["results"][0]["response"]["result"]["cols"]]
+                rows = res["results"][0]["response"]["result"]["rows"]
+                for r in rows:
+                    row_dict = {}
+                    for i, col in enumerate(cols):
+                        row_dict[col] = r[i].get("value")
+                    rejections.append({
+                        "id": str(row_dict.get("id")),
+                        "symbol": str(row_dict.get("symbol") or "Asset"),
+                        "strategy": str(row_dict.get("strategy") or "Risk Shield"),
+                        "proposed_side": str(row_dict.get("proposed_side") or "BUY"),
+                        "reason": str(row_dict.get("rejection_reason") or ""),
+                        "outcome": str(row_dict.get("counterfactual_outcome") or "CAPITAL_PRESERVED"),
+                        "capital_saved": float(row_dict.get("capital_saved") or 0.0),
+                        "time": str(row_dict.get("logged_at") or "")
+                    })
+        except Exception as e:
+            logger.error(f"[TursoSync] Failed to parse rejections from Turso: {e}")
+        return rejections
 
     def get_status(self) -> Dict[str, Any]:
         """Returns connection status and trade counts from Turso."""

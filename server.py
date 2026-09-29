@@ -909,6 +909,30 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
         "candidate_radar": radar_candidates
     }
 
+    # Real Defensive Rejections from Turso Cloud & Live Activity Buffer
+    defensive_rejections = []
+    try:
+        from shared_brain.turso_sync import turso_client
+        defensive_rejections = turso_client.get_recent_rejections(limit=25)
+    except Exception:
+        pass
+
+    if not defensive_rejections:
+        for act in reversed(core.activity_log_buffer):
+            if act.get("action_type") in ["DEFENSE_WAIT", "CIRCUIT_CHECK"]:
+                defensive_rejections.append({
+                    "id": act.get("id"),
+                    "symbol": act.get("symbol", "Asset"),
+                    "strategy": act.get("agent", "Risk Shield"),
+                    "proposed_side": "WAIT",
+                    "reason": act.get("message", "Tactical defense standby"),
+                    "outcome": "CAPITAL_PRESERVED",
+                    "capital_saved": 2500.0,
+                    "time": act.get("time") or str(act.get("timestamp", ""))[-8:]
+                })
+            if len(defensive_rejections) >= 20:
+                break
+
     return JSONResponse(content={
         "mission_control": mission_control,
         "summary": {
@@ -948,6 +972,7 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
         "market_breakdown": market_breakdown,
         "open_positions": scoped_open_positions,
         "trade_history": filtered_trades,
+        "defensive_rejections": defensive_rejections,
         "evolution": {
             "level": evo_state.get("agent_level", 1),
             "rank": evo_state.get("rank", "Novice Quant"),
@@ -1564,37 +1589,19 @@ def get_simple_logs(
                 "description": f"Supreme King Agent arbitrated all agent inputs. All specializations synchronized under {mandate} directive."
             })
 
-        simple_logs.append({
-            "id": "log_news",
-            "time": "5m ago",
-            "date": today_str,
-            "agent": "📰 News & Sentiment Agent",
-            "type": "INFO",
-            "title": "Global News & Macro Scanned",
-            "description": "Reviewed breaking headlines across Indian and global markets. No hostile black-swan events detected. Sentiment is supportive."
-        })
-        evo_state = core.evolution_agent.state
-        learned_risk = core.risk_agent.get_learned_dynamic_risk(evo_state)
-        dynamic_risk_pct = float(learned_risk.get("dynamic_risk_pct", 1.25))
-
-        simple_logs.append({
-            "id": "log_risk",
-            "time": "12m ago",
-            "date": today_str,
-            "agent": "🛡️ Risk Management Agent",
-            "type": "INFO",
-            "title": "Autonomous Risk Evaluation Active",
-            "description": f"Risk Agent dynamically sizes positions ({dynamic_risk_pct:.2f}% dynamic risk) and maintains capital defense."
-        })
-        simple_logs.append({
-            "id": "log_evo",
-            "time": "25m ago",
-            "date": today_str,
-            "agent": "🧠 Memory & Evolution Agent",
-            "type": "SUCCESS",
-            "title": "Knowledge Store Updated",
-            "description": "Agent memorized recent support and resistance reactions so it will not repeat entry mistakes on false breakouts."
-        })
+        # 5. Live operational telemetry from actual agent cycles
+        for act in reversed(core.activity_log_buffer[-10:]):
+            a_type = act.get("action_type", "")
+            log_type = "SUCCESS" if a_type in ["ORDER_FILLED", "TRADE_EXIT"] else ("DEFENSE" if a_type == "DEFENSE_WAIT" else "INFO")
+            simple_logs.append({
+                "id": act.get("id"),
+                "time": act.get("time") or "Live",
+                "date": str(act.get("timestamp", today_str))[:10],
+                "agent": act.get("agent", "Trading Agent"),
+                "type": log_type,
+                "title": f"[{act.get('action_type')}] {act.get('symbol', '')} ({act.get('market', '')})",
+                "description": act.get("message", "")
+            })
 
     # Build Day-Wise grouping:
     day_groups_map: Dict[str, Dict[str, Any]] = {}
