@@ -32,6 +32,8 @@ from agents.ceo_agent.agent import CEOAgent
 from shared_brain.shadow_clone_manager import ShadowCloneManager
 from shared_brain.intermarket_nexus import IntermarketNexus
 from shared_brain.omni_calculator import OmniCalculator
+from agents.core_agent.market_fleet import SovereignMarketFleet
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("CoreAgent")
@@ -64,6 +66,22 @@ class CoreTradingAgent:
         self.ceo_agent = CEOAgent(self.brain)
         self.clone_manager = ShadowCloneManager()
         self.started_at: Optional[float] = None
+
+        # Sovereign Multi-Market Fleets (Each market has dedicated 8-10 agents sharing one hive-mind)
+        self.fleets: Dict[str, SovereignMarketFleet] = {}
+        for m in ["INDIAN_STOCKS", "CRYPTO", "COMMODITIES", "FOREX", "US_STOCKS"]:
+            try:
+                self.fleets[m] = SovereignMarketFleet(
+                    market=m,
+                    allocated_capital=100000.0,
+                    trading_mode=self.trading_mode,
+                    shared_brain=self.brain,
+                    shared_board=self.board,
+                    shared_execution_agent=self.execution_agent,
+                    log_callback=self.log_agent_activity
+                )
+            except Exception as e:
+                logger.error(f"[CoreAgent] Failed to initialize fleet for {m}: {e}")
         
         self.activity_log_buffer: List[Dict[str, Any]] = [
             {
@@ -180,6 +198,8 @@ class CoreTradingAgent:
         self.system_state["ceo_dashboard"] = self.ceo_agent.get_ceo_dashboard_snapshot()
         self.system_state["shadow_clones"] = self.clone_manager.get_manager_snapshot()
         self.system_state["activity_logs"] = self.activity_log_buffer[-100:]
+        if hasattr(self, "fleets") and self.fleets:
+            self.system_state["fleets_telemetry"] = {m: f.get_fleet_telemetry() for m, f in self.fleets.items()}
         self.risk_agent.update_account_balance(self.system_state["portfolio"]["equity"])
 
     def set_market(self, market: str):
@@ -217,6 +237,12 @@ class CoreTradingAgent:
 
         self.system_state["trading_mode"] = self.trading_mode
         self.risk_agent.set_mode(self.trading_mode)
+        if hasattr(self, "fleets") and self.fleets:
+            for f in self.fleets.values():
+                try:
+                    f.set_trading_mode(self.trading_mode)
+                except Exception:
+                    pass
 
     def start(self):
         """Starts the autonomous trading loop"""
@@ -354,6 +380,45 @@ class CoreTradingAgent:
         # Real-Time News UpGuard: Instantly intercept breaking news across pending orders & positions
         upguard_defense = self.execution_agent.intercept_breaking_macro_news(news_report)
         self.system_state["latest_upguard_verdict"] = upguard_defense
+
+        # PARALLEL SOVEREIGN FLEETS BRANCH:
+        # If market is ALL or multi-market, run all 5 dedicated market fleets (40-50 agent instances) concurrently!
+        if self.selected_market.upper() in ["ALL", "ALL_THREE", "MULTI_MARKET", "TOTAL"] and hasattr(self, "fleets") and self.fleets:
+            logger.info(f"[CoreAgent] ⚡ MULTI-MARKET COLLECTIVE ENGAGED: Executing 5 sovereign fleets in parallel!")
+            fleet_results = {}
+            with ThreadPoolExecutor(max_workers=len(self.fleets)) as executor:
+                futures = {executor.submit(fleet.run_fleet_cycle): m for m, fleet in self.fleets.items()}
+                for fut in as_completed(futures):
+                    m_name = futures[fut]
+                    try:
+                        res = fut.result()
+                        fleet_results[m_name] = res
+                    except Exception as e:
+                        logger.error(f"[CoreAgent] Fleet {m_name} cycle encountered error: {e}")
+            
+            # Aggregate candidates across all sovereign fleets
+            combined_candidates = []
+            for fleet in self.fleets.values():
+                combined_candidates.extend(fleet.latest_candidates)
+            self.system_state["candidate_radar"] = combined_candidates
+            self._refresh_state_snapshots()
+
+            total_open = len(self.system_state.get("open_positions", []))
+            equity_val = float(self.system_state.get("portfolio", {}).get("equity", 500000.0))
+            logger.info(
+                f"[CoreAgent] Sovereign Fleets Cycle #{self.system_state['cycle_count']} complete across all markets. "
+                f"Open Positions: {total_open} | Total Candidates Found: {len(combined_candidates)} | Equity: ₹{equity_val:,.2f}"
+            )
+            return {
+                "cycle": self.system_state["cycle_count"],
+                "timestamp": self.system_state["last_tick_time"],
+                "market": "ALL",
+                "execution_mode": "PARALLEL_SOVEREIGN_FLEETS",
+                "fleet_results": fleet_results,
+                "portfolio": self.system_state["portfolio"],
+                "open_positions_count": total_open,
+                "candidates_count": len(combined_candidates)
+            }
 
         # Step 2: Multi-Chart Screener tuned to active regime:
         # - DANGEROUS: 5m high-velocity setup screening, relaxed threshold (>=42 pts) for fast evolution.

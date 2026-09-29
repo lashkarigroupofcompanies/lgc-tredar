@@ -44,6 +44,23 @@ interface AnalysisTrade {
   lesson?: string;
 }
 
+export interface TradeOverlay {
+  symbol: string;
+  market?: string;
+  side: string;
+  entry_price: number;
+  stop_loss: number;
+  take_profit_1?: number;
+  take_profit_2?: number;
+  target1?: number;
+  target2?: number;
+  exit_price?: number;
+  pnl?: number;
+  status?: string;
+  strategy?: string;
+}
+
+
 interface AnalysisPosition {
   id: string;
   symbol: string;
@@ -182,6 +199,7 @@ export class HackerDeskController {
   public currentChannel = TV_CHANNELS[0];
   public currentWebcam = GLOBAL_WEBCAMS[0];
   public tickInterval: number | null = null;
+  public activeTradeOverlay: TradeOverlay | null = null;
 
   // Operational Mode (3 Modes with dedicated ₹5,00,000 capital ledgers)
   public tradingMode: 'SAFE' | 'MONEY_MAKER' | 'DANGEROUS' = 'SAFE';
@@ -228,6 +246,7 @@ export class HackerDeskController {
   public agentUptimeTimer: any = null;
 
   public init(): void {
+    (window as any).hackerDesk = this;
     document.body.classList.add('hacker-night-mode');
     this.injectDeskMarkup();
     this.initZuluClock();
@@ -1211,7 +1230,8 @@ export class HackerDeskController {
         const found = (MARKET_DATA[this.activeMarket] || []).find(a => a.symbol === symbol);
         if (found) {
           this.activeAsset = found;
-          this.generateCandleSeries();
+          this.activeTradeOverlay = null;
+          this.loadCandles();
         }
       });
     }
@@ -1222,7 +1242,7 @@ export class HackerDeskController {
           tfBar.querySelectorAll('.hk-tf-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           this.activeTimeframe = btn.getAttribute('data-tf') || '15m';
-          this.generateCandleSeries();
+          this.loadCandles();
         });
       });
     }
@@ -1236,7 +1256,7 @@ export class HackerDeskController {
     };
 
     window.addEventListener('resize', resizeChart);
-    this.generateCandleSeries();
+    this.loadCandles();
     setTimeout(resizeChart, 50);
 
     // Fetch real current price to anchor the chart correctly
@@ -1289,14 +1309,34 @@ export class HackerDeskController {
     }
   }
 
-  public selectAssetBySymbol(symbol: string, marketHint?: string): void {
+  public async selectAssetBySymbol(symbol: string, marketHint?: string, overlayData?: TradeOverlay): Promise<void> {
+    const cleanSym = (symbol || '').trim().toUpperCase();
+    if (!cleanSym) return;
+
     if (marketHint && MARKET_DATA[marketHint]) {
       this.activeMarket = marketHint;
     } else {
+      let foundMkt = '';
       for (const [m, assets] of Object.entries(MARKET_DATA)) {
-        if (assets.some(a => a.symbol === symbol || symbol.includes(a.symbol))) {
-          this.activeMarket = m;
+        if (assets.some(a => a.symbol === cleanSym || cleanSym.includes(a.symbol) || a.symbol.includes(cleanSym))) {
+          foundMkt = m;
           break;
+        }
+      }
+      if (foundMkt) {
+        this.activeMarket = foundMkt;
+      } else {
+        // Auto infer market
+        if (cleanSym.includes('/USDT') || cleanSym.includes('USDT') || ['BTC', 'ETH', 'SOL', 'BNB', 'DOGE', 'XRP', 'ADA', 'AVAX', 'NEAR', 'SUI', 'PEPE', 'WIF'].includes(cleanSym)) {
+          this.activeMarket = 'CRYPTO';
+        } else if (['CRUDEOIL', 'GOLD', 'SILVER', 'COPPER', 'NATURALGAS', 'XAU', 'XAG', 'USOIL'].includes(cleanSym)) {
+          this.activeMarket = 'COMMODITIES';
+        } else if (cleanSym.includes('/') || ['EUR', 'GBP', 'USD', 'JPY', 'AUD', 'CAD'].some(c => cleanSym.includes(c))) {
+          this.activeMarket = 'FOREX';
+        } else if (['NVDA', 'AAPL', 'TSLA', 'MSFT', 'AMZN', 'META', 'GOOGL', 'SPY', 'QQQ'].includes(cleanSym)) {
+          this.activeMarket = 'US_STOCKS';
+        } else {
+          this.activeMarket = 'INDIAN_STOCKS';
         }
       }
     }
@@ -1312,26 +1352,73 @@ export class HackerDeskController {
       });
     }
 
+    let found = (MARKET_DATA[this.activeMarket] || []).find(a => a.symbol === cleanSym || cleanSym.includes(a.symbol) || a.symbol.includes(cleanSym));
+    if (!found) {
+      const estPrice = Number(overlayData?.entry_price || overlayData?.stop_loss || 1000.0);
+      found = {
+        symbol: cleanSym,
+        name: cleanSym,
+        basePrice: estPrice > 0 ? estPrice : 1000.0,
+        atr: (estPrice > 0 ? estPrice : 1000.0) * 0.015,
+        digits: this.activeMarket === 'FOREX' ? 4 : (cleanSym.includes('XAG') || cleanSym.includes('SILVER') ? 3 : 2),
+        lotSize: 1
+      };
+      if (!MARKET_DATA[this.activeMarket]) {
+        MARKET_DATA[this.activeMarket] = [];
+      }
+      MARKET_DATA[this.activeMarket].unshift(found);
+    }
+    this.activeAsset = found;
+
     this.updateMarketStatusPill();
     this.populateAssetDropdown();
+    const select = document.getElementById('hkAssetSelect') as HTMLSelectElement;
+    if (select) select.value = found.symbol;
 
-    const found = (MARKET_DATA[this.activeMarket] || []).find(a => a.symbol === symbol || symbol.includes(a.symbol));
-    if (found) {
-      this.activeAsset = found;
-      const select = document.getElementById('hkAssetSelect') as HTMLSelectElement;
-      if (select) select.value = found.symbol;
+    if (overlayData) {
+      this.activeTradeOverlay = overlayData;
+    } else {
+      this.activeTradeOverlay = null;
     }
 
+    await this.loadCandles(cleanSym, this.activeMarket);
+    this.closeAnalysisScreen();
+  }
+
+  public async loadCandles(symbol?: string, market?: string): Promise<void> {
+    const sym = symbol || this.activeAsset.symbol;
+    const mkt = market || this.activeMarket;
+    try {
+      const res = await fetch(`/api/candles?symbol=${encodeURIComponent(sym)}&market=${encodeURIComponent(mkt)}&interval=${this.activeTimeframe || '5m'}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.candles && data.candles.length > 0) {
+          this.candles = data.candles;
+          if (data.overlay && !this.activeTradeOverlay) {
+            this.activeTradeOverlay = data.overlay;
+          }
+          if (data.current_price) {
+            this.activeAsset.basePrice = Number(data.current_price);
+          }
+          if (data.digits !== undefined) {
+            this.activeAsset.digits = Number(data.digits);
+          }
+          this.drawChart();
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('[HackerDesk] /api/candles fetch failed, falling back to simulated series:', err);
+    }
     this.generateCandleSeries();
     this.drawChart();
-    this.closeAnalysisScreen();
   }
 
   private generateCandleSeries(): void {
     this.candles = [];
     const count = 75;
-    let price = this.activeAsset.basePrice;
-    const atr = this.activeAsset.atr;
+    let price = this.activeTradeOverlay?.entry_price || this.activeAsset.basePrice || 1000.0;
+    const atr = this.activeAsset.atr || (price * 0.015);
     const now = Math.floor(Date.now() / 1000);
 
     for (let i = count; i >= 0; i--) {
@@ -1343,7 +1430,7 @@ export class HackerDeskController {
       const volume = Math.floor(Math.random() * 4000 + 800);
 
       this.candles.push({
-        time: now - i * 900,
+        time: now - i * 300,
         open,
         high,
         low,
@@ -1393,6 +1480,27 @@ export class HackerDeskController {
       if (c.high > maxPrice) maxPrice = c.high;
       if (c.volume > maxVol) maxVol = c.volume;
     });
+
+    // Check for active order or trade overlay to include in chart bounds
+    const activePos: any = this.livePositionsList.find(
+      (p: any) => p.symbol === this.activeAsset.symbol ||
+                  (p.symbol && this.activeAsset.symbol.includes(p.symbol)) ||
+                  (p.symbol && p.symbol.includes(this.activeAsset.symbol))
+    );
+    const overlay = this.activeTradeOverlay || activePos;
+    if (overlay) {
+      const ep = Number(overlay.entry_price || overlay.intended_entry_price || 0);
+      const sl = Number(overlay.stop_loss || overlay.initial_stop_loss || 0);
+      const t1 = Number(overlay.target1 || overlay.take_profit_1 || 0);
+      const t2 = Number(overlay.target2 || overlay.take_profit_2 || 0);
+      const xp = Number(overlay.exit_price || 0);
+      [ep, sl, t1, t2, xp].forEach(p => {
+        if (p > 0) {
+          if (p < minPrice) minPrice = p;
+          if (p > maxPrice) maxPrice = p;
+        }
+      });
+    }
 
     const priceMargin = (maxPrice - minPrice) * 0.12 || 1;
     minPrice -= priceMargin;
@@ -1458,33 +1566,57 @@ export class HackerDeskController {
     this.drawEma(ctx, 20, candleStep, getY, 'rgba(0, 242, 254, 0.8)');
     this.drawEma(ctx, 50, candleStep, getY, 'rgba(255, 170, 0, 0.8)');
 
-    // DYNAMIC ORDER LINES (ONLY DRAW IF AGENT ACTUALLY HAS AN ACTIVE ORDER ON THIS ASSET!)
-    const activePos: any = this.livePositionsList.find(
-      (p: any) => p.symbol === this.activeAsset.symbol ||
-                  (p.symbol && this.activeAsset.symbol.includes(p.symbol)) ||
-                  (p.symbol && p.symbol.includes(this.activeAsset.symbol))
-    );
+    // DYNAMIC ORDER LINES (OVERLAY & LIVE AGENT POSITIONS)
+    if (overlay) {
+      const entryPrice = Number(overlay.entry_price || overlay.intended_entry_price || 0);
+      const stopLoss = Number(overlay.stop_loss || overlay.initial_stop_loss || 0);
+      const target1 = Number(overlay.target1 || overlay.take_profit_1 || 0);
+      const target2 = Number(overlay.target2 || overlay.take_profit_2 || 0);
+      const exitPrice = Number(overlay.exit_price || 0);
+      const pnl = Number(overlay.pnl !== undefined ? overlay.pnl : overlay.realized_pnl || 0);
+      const side = String(overlay.side || overlay.direction || 'BUY').toUpperCase();
+      const strategy = String(overlay.strategy || overlay.strategy_name || 'QUANT AGENT');
+      const status = String(overlay.status || (exitPrice > 0 ? 'CLOSED' : 'OPEN')).toUpperCase();
 
-    if (activePos) {
-      const entryPrice = Number(activePos.entry_price || activePos.intended_entry_price || 0);
-      const stopLoss = Number(activePos.stop_loss || activePos.initial_stop_loss || 0);
-      const target1 = Number(activePos.target1 || activePos.take_profit_1 || 0);
-      const target2 = Number(activePos.target2 || activePos.take_profit_2 || 0);
-      const side = String(activePos.side || activePos.direction || 'BUY').toUpperCase();
-      const strategy = String(activePos.strategy || activePos.strategy_name || 'QUANT AGENT');
-
+      // Green Target Lines (Profit Targets)
       if (target2 > 0) {
         this.drawOrderLine(ctx, target2, chartW, getY, '#00ff66', `${strategy} TARGET 2 (+${target2.toFixed(this.activeAsset.digits)})`, [4, 4]);
       }
       if (target1 > 0) {
         this.drawOrderLine(ctx, target1, chartW, getY, '#00ff66', `${strategy} TARGET 1 (+${target1.toFixed(this.activeAsset.digits)})`, [4, 4]);
       }
+      // Cyan Entry Line
       if (entryPrice > 0) {
         this.drawOrderLine(ctx, entryPrice, chartW, getY, '#00f2fe', `AGENT ${side} ENTRY @ ${entryPrice.toFixed(this.activeAsset.digits)}`, []);
       }
+      // Red Stop Loss Line
       if (stopLoss > 0) {
         this.drawOrderLine(ctx, stopLoss, chartW, getY, '#ff3366', `AGENT STOP LOSS @ ${stopLoss.toFixed(this.activeAsset.digits)}`, [4, 4]);
       }
+      // Exit Line if closed
+      if (status === 'CLOSED' && exitPrice > 0) {
+        const pnlCol = pnl >= 0 ? '#00ff66' : '#ff3366';
+        const pnlSign = pnl >= 0 ? '+' : '';
+        this.drawOrderLine(ctx, exitPrice, chartW, getY, pnlCol, `AGENT EXIT @ ${exitPrice.toFixed(this.activeAsset.digits)} (${pnlSign}₹${pnl.toFixed(2)})`, [2, 2]);
+      }
+
+      // Visual Trade Banner in Top-Left of Chart
+      ctx.save();
+      const bannerBg = status === 'CLOSED' ? (pnl >= 0 ? 'rgba(0, 255, 102, 0.15)' : 'rgba(255, 51, 102, 0.15)') : 'rgba(0, 242, 254, 0.15)';
+      const bannerBorder = status === 'CLOSED' ? (pnl >= 0 ? '#00ff66' : '#ff3366') : '#00f2fe';
+      ctx.fillStyle = bannerBg;
+      ctx.strokeStyle = bannerBorder;
+      ctx.lineWidth = 1;
+      const bW = Math.min(chartW - 20, 380 * window.devicePixelRatio);
+      const bH = 26 * window.devicePixelRatio;
+      ctx.fillRect(12, padTop + 6, bW, bH);
+      ctx.strokeRect(12, padTop + 6, bW, bH);
+
+      ctx.fillStyle = bannerBorder;
+      ctx.font = `bold ${10 * window.devicePixelRatio}px var(--hk-font-mono)`;
+      const pnlText = status === 'CLOSED' ? ` • PnL: ${pnl >= 0 ? '+' : ''}₹${pnl.toFixed(2)}` : '';
+      ctx.fillText(`🎯 ${overlay.symbol} [${side}] ${status} • EP: ${entryPrice.toFixed(this.activeAsset.digits)} • SL: ${stopLoss.toFixed(this.activeAsset.digits)}${pnlText}`, 18, padTop + 22);
+      ctx.restore();
     } else {
       // Clean watermark indicating agent is scanning with NO fake static lines
       ctx.fillStyle = 'rgba(0, 255, 102, 0.45)';
@@ -1497,7 +1629,7 @@ export class HackerDeskController {
     if (!mktStatus.isOpen) {
       ctx.fillStyle = 'rgba(255, 170, 0, 0.85)';
       ctx.font = `bold ${10 * window.devicePixelRatio}px var(--hk-font-mono)`;
-      ctx.fillText(`⏸️ ${mktStatus.statusText} • REAL-TIME TICKS FROZEN`, 14, padTop + 34);
+      ctx.fillText(`⏸️ ${mktStatus.statusText} • REAL-TIME TICKS FROZEN`, 14, padTop + 38);
     }
 
     // Current Price Banner
@@ -1543,7 +1675,7 @@ export class HackerDeskController {
     const y = getY(price);
     ctx.save();
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.2 * window.devicePixelRatio;
+    ctx.lineWidth = 1.4 * window.devicePixelRatio;
     ctx.setLineDash(dash);
     ctx.beginPath();
     ctx.moveTo(0, y);
@@ -1553,6 +1685,14 @@ export class HackerDeskController {
     ctx.fillStyle = color;
     ctx.font = `bold ${9 * window.devicePixelRatio}px var(--hk-font-mono)`;
     ctx.fillText(`[ ${label} ]`, 10, y - 4);
+
+    // Right-side axis tag
+    ctx.fillStyle = color;
+    ctx.fillRect(w + 2, y - 8, 80, 16);
+    ctx.fillStyle = '#000000';
+    ctx.font = `bold ${9 * window.devicePixelRatio}px var(--hk-font-mono)`;
+    ctx.fillText(price.toFixed(this.activeAsset.digits), w + 6, y + 4);
+
     ctx.restore();
   }
 
@@ -2879,6 +3019,26 @@ export class HackerDeskController {
       });
     });
 
+    // Mission Control & Radar Period and Market filter buttons
+    body.querySelectorAll('.hk-mc-period-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const d = btn.getAttribute('data-dval');
+        if (d) {
+          this.activeAnalysisDateFilter = d;
+          this.loadAnalysisData();
+        }
+      });
+    });
+    body.querySelectorAll('.hk-mc-mkt-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const m = btn.getAttribute('data-mval');
+        if (m) {
+          this.activeAnalysisMarketFilter = m;
+          this.loadAnalysisData();
+        }
+      });
+    });
+
     // Sub-tab switching events
     body.querySelectorAll('.hk-ana-tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -3074,8 +3234,32 @@ export class HackerDeskController {
       row.addEventListener('click', () => {
         const sym = row.getAttribute('data-symbol');
         const mkt = row.getAttribute('data-market');
+        const entry = parseFloat(row.getAttribute('data-entry') || '0');
+        const sl = parseFloat(row.getAttribute('data-stoploss') || '0');
+        const t1 = parseFloat(row.getAttribute('data-target1') || '0');
+        const t2 = parseFloat(row.getAttribute('data-target2') || '0');
+        const exit = parseFloat(row.getAttribute('data-exit') || '0');
+        const pnl = parseFloat(row.getAttribute('data-pnl') || '0');
+        const side = row.getAttribute('data-side') || 'BUY';
+        const strat = row.getAttribute('data-strategy') || 'QUANT AGENT';
+        const status = row.getAttribute('data-status') || (exit > 0 ? 'CLOSED' : 'OPEN');
+
+        const overlay: TradeOverlay | undefined = (entry > 0 || sl > 0) ? {
+          symbol: sym || '',
+          market: mkt || undefined,
+          side: side,
+          entry_price: entry,
+          stop_loss: sl,
+          take_profit_1: t1,
+          take_profit_2: t2,
+          exit_price: exit > 0 ? exit : undefined,
+          pnl: pnl,
+          strategy: strat,
+          status: status
+        } : undefined;
+
         if (sym) {
-          this.selectAssetBySymbol(sym, mkt || undefined);
+          this.selectAssetBySymbol(sym, mkt || undefined, overlay);
         }
       });
     });
@@ -3413,7 +3597,7 @@ export class HackerDeskController {
           ${openPositions.map(p => {
             const isProfit = (p.unrealized_pnl || 0) >= 0;
             return `
-              <tr class="clickable-row" data-symbol="${p.symbol}" data-market="${p.market}">
+              <tr class="clickable-row" data-symbol="${p.symbol}" data-market="${p.market}" data-entry="${p.entry_price || ''}" data-stoploss="${p.stop_loss || ''}" data-target1="${p.target1 || p.take_profit_1 || ''}" data-target2="${p.target2 || p.take_profit_2 || ''}" data-side="${p.side || 'BUY'}" data-strategy="${p.strategy || ''}" data-status="OPEN">
                 <td><span style="background:rgba(0,255,102,0.15);color:#00ff66;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:800;">ACTIVE</span></td>
                 <td style="font-weight:700;color:#00ff66;">${p.symbol}</td>
                 <td><span class="hk-badge-status">${p.market}</span></td>
@@ -3435,7 +3619,7 @@ export class HackerDeskController {
           ${closedTrades.map(t => {
             const isProfit = (t.pnl || 0) >= 0;
             return `
-              <tr class="clickable-row" data-symbol="${t.symbol}" data-market="${t.market}">
+              <tr class="clickable-row" data-symbol="${t.symbol}" data-market="${t.market}" data-entry="${t.entry_price || ''}" data-exit="${t.exit_price || ''}" data-stoploss="${t.stop_loss || ''}" data-target1="${t.take_profit_1 || t.target1 || ''}" data-target2="${t.take_profit_2 || t.target2 || ''}" data-side="${t.side || 'BUY'}" data-pnl="${t.pnl || ''}" data-strategy="${t.strategy || ''}" data-status="CLOSED">
                 <td><span style="background:rgba(100,116,139,0.2);color:#94a3b8;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;">CLOSED</span></td>
                 <td style="font-weight:700;color:#f0fdf4;">${t.symbol}</td>
                 <td><span class="hk-badge-status">${t.market}</span></td>
@@ -3910,7 +4094,7 @@ export class HackerDeskController {
             ${positions.map(p => {
               const isProfit = (p.unrealized_pnl || 0) >= 0;
               return `
-                <tr class="clickable-row" data-symbol="${p.symbol}" data-market="${p.market}">
+                <tr class="clickable-row" data-symbol="${p.symbol}" data-market="${p.market}" data-entry="${p.entry_price || ''}" data-stoploss="${p.stop_loss || ''}" data-target1="${p.target1 || ''}" data-side="${p.side || 'BUY'}" data-strategy="${p.horizon || 'INTRADAY SCALP'}" data-status="OPEN">
                   <td style="font-weight:700;color:#00ff66;">${p.symbol}</td>
                   <td><span class="hk-badge-status">${p.market}</span></td>
                   <td><span class="hk-badge-side ${p.side.toLowerCase()}">${p.side}</span></td>
@@ -4024,7 +4208,7 @@ export class HackerDeskController {
             const mktIcon = t.market === 'INDIAN_STOCKS' ? '🇮🇳' : (t.market === 'CRYPTO' ? '🪙' : (t.market === 'US_STOCKS' ? '🇺🇸' : (t.market === 'FOREX' ? '💱' : '⚡')));
             const timeDisplay = t.date ? `${t.date} ${t.time}` : t.time;
             return `
-              <tr class="clickable-row" data-symbol="${t.symbol}" data-market="${t.market}">
+              <tr class="clickable-row" data-symbol="${t.symbol}" data-market="${t.market}" data-entry="${t.entry_price || ''}" data-exit="${t.exit_price || ''}" data-stoploss="${t.stop_loss || ''}" data-target1="${t.take_profit_1 || t.target1 || ''}" data-target2="${t.take_profit_2 || t.target2 || ''}" data-side="${t.side || 'BUY'}" data-pnl="${t.pnl || ''}" data-strategy="${t.strategy || ''}" data-status="CLOSED">
                 <td style="color:#64748b;font-family:var(--hk-font-mono);font-size:10px;">${t.id}</td>
                 <td style="color:#00f2fe;font-family:var(--hk-font-mono);font-size:10px;white-space:nowrap;">${timeDisplay}</td>
                 <td style="font-weight:700;color:#00ff66;">${t.symbol}</td>
@@ -4656,7 +4840,7 @@ export class HackerDeskController {
                     const mktIcon = t.market === 'INDIAN_STOCKS' ? '🇮🇳' : (t.market === 'CRYPTO' ? '🪙' : (t.market === 'US_STOCKS' ? '🇺🇸' : (t.market === 'FOREX' ? '💱' : '⚡')));
                     const timeDisplay = t.date ? `${t.date} ${t.time}` : t.time;
                     return `
-                      <tr class="clickable-row" data-symbol="${t.symbol}" data-market="${t.market}">
+                      <tr class="clickable-row" data-symbol="${t.symbol}" data-market="${t.market}" data-entry="${t.entry_price || ''}" data-exit="${t.exit_price || ''}" data-stoploss="${t.stop_loss || ''}" data-target1="${t.take_profit_1 || t.target1 || ''}" data-target2="${t.take_profit_2 || t.target2 || ''}" data-side="${t.side || 'BUY'}" data-pnl="${t.pnl || ''}" data-strategy="${t.strategy || ''}" data-status="CLOSED">
                         <td style="color:#64748b;font-family:var(--hk-font-mono);font-size:10px;">${idx + 1}</td>
                         <td style="color:#64748b;font-family:var(--hk-font-mono);font-size:10px;">${t.id}</td>
                         <td style="color:#00f2fe;font-family:var(--hk-font-mono);font-size:10px;white-space:nowrap;">${timeDisplay}</td>
@@ -5044,7 +5228,7 @@ export class HackerDeskController {
                 ` : radar.map((r: any) => {
                   const scoreColor = r.score >= 70 ? '#00ff66' : (r.score >= 50 ? '#ffaa00' : '#64748b');
                   return `
-                    <tr>
+                    <tr class="clickable-row" data-symbol="${r.symbol}" data-market="${r.market}" data-entry="${r.price || ''}" style="cursor:pointer;" title="Click to view ${r.symbol} chart">
                       <td style="font-weight:800;color:#f1f5f9;">
                         ${r.symbol}
                       </td>

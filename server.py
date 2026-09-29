@@ -1018,35 +1018,103 @@ def trigger_single_cycle(background_tasks: BackgroundTasks):
 
 
 @app.get("/api/candles")
-def get_candles(symbol: Optional[str] = None):
-    """Returns candlestick data formatted for TradingView Lightweight Charts."""
-    market = core.selected_market
-    if not symbol:
-        sym_map = {"CRYPTO": "BTC", "INDIAN_STOCKS": "RELIANCE", "US_STOCKS": "NVDA"}
-        symbol = sym_map.get(market, "BTC")
+def get_candles(symbol: Optional[str] = None, market: Optional[str] = None, interval: Optional[str] = "5m"):
+    """Returns candlestick data and active trade overlays formatted for any chart across all markets."""
+    clean_s = (symbol or "").strip().upper()
+    if not clean_s:
+        clean_s = "BTC"
 
+    if not market or market.upper() in ["ALL", "TOTAL", "MULTI_MARKET"]:
+        if clean_s.endswith(".NS") or clean_s.endswith(".BO") or clean_s in [
+            "DIXON", "TCS", "INFY", "RELIANCE", "HDFCBANK", "TATAMOTORS", "ZOMATO", "REC", "JIOFIN", "NIFTY", "BANKNIFTY", "ICICIBANK", "SBIN"
+        ]:
+            market = "INDIAN_STOCKS"
+        elif clean_s in ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "NEAR", "SUI", "PEPE", "WIF"] or "/USDT" in clean_s or "USDT" in clean_s:
+            market = "CRYPTO"
+        elif clean_s in ["CRUDEOIL", "GOLD", "SILVER", "COPPER", "NATURALGAS", "XAU", "XAG", "USOIL"]:
+            market = "COMMODITIES"
+        elif clean_s in ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "EUR", "GBP", "JPY"]:
+            market = "FOREX"
+        elif clean_s in ["NVDA", "AAPL", "TSLA", "MSFT", "AMZN", "META", "GOOGL", "SPY", "QQQ"]:
+            market = "US_STOCKS"
+        else:
+            market = getattr(core, "selected_market", "CRYPTO")
+            if market in ["ALL", "TOTAL"]:
+                market = "CRYPTO"
+
+    market = market.upper()
     try:
-        df = core.analytical_agent.feed.get_market_data(market, symbol, interval="15m")
-        if df.empty:
-            return JSONResponse(content={"candles": [], "symbol": symbol})
-
+        df = core.analytical_agent.feed.get_market_data(market, clean_s, interval=interval or "5m")
         candles = []
-        for idx, row in df.iterrows():
-            # Convert timestamp to epoch seconds
-            ts = int(row["timestamp"].timestamp()) if hasattr(row["timestamp"], "timestamp") else int(time.time()) - (len(df) - len(candles)) * 900
-            candles.append({
-                "time": ts,
-                "open": float(row["open"]),
-                "high": float(row["high"]),
-                "low": float(row["low"]),
-                "close": float(row["close"]),
-                "volume": float(row.get("volume", 0.0))
-            })
+        if not df.empty:
+            for idx, row in df.iterrows():
+                raw_ts = row.get("timestamp") if (hasattr(row, "get") and "timestamp" in row) else idx
+                if hasattr(raw_ts, "timestamp"):
+                    ts = int(raw_ts.timestamp())
+                else:
+                    ts = int(time.time()) - (len(df) - len(candles)) * 300
+                candles.append({
+                    "time": ts,
+                    "open": float(row["open"]),
+                    "high": float(row["high"]),
+                    "low": float(row["low"]),
+                    "close": float(row["close"]),
+                    "volume": float(row.get("volume", 0.0))
+                })
 
-        return JSONResponse(content={"candles": candles, "symbol": symbol, "market": market})
+        # Check for active position or trade overlay on this symbol
+        broker = core.execution_agent.broker
+        overlay = None
+        # Check open positions first
+        for pos in broker.open_positions:
+            pos_sym = str(pos.get("symbol", "")).upper()
+            if pos_sym == clean_s or clean_s in pos_sym or pos_sym in clean_s:
+                overlay = {
+                    "symbol": pos.get("symbol"),
+                    "side": pos.get("side", pos.get("direction", "BUY")),
+                    "entry_price": float(pos.get("entry_price", pos.get("intended_entry_price", 0.0))),
+                    "stop_loss": float(pos.get("stop_loss", pos.get("initial_stop_loss", 0.0))),
+                    "take_profit_1": float(pos.get("target1", pos.get("take_profit_1", 0.0))),
+                    "take_profit_2": float(pos.get("target2", pos.get("take_profit_2", 0.0))),
+                    "status": "OPEN",
+                    "strategy": pos.get("strategy_name", pos.get("strategy", "QUANT_ALPHA"))
+                }
+                break
+
+        # If not open, check recent trades for post-mortem visual
+        if not overlay:
+            for t in reversed(broker.trade_history[-20:]):
+                t_sym = str(t.get("symbol", "")).upper()
+                if t_sym == clean_s or clean_s in t_sym or t_sym in clean_s:
+                    overlay = {
+                        "symbol": t.get("symbol"),
+                        "side": t.get("side", "BUY"),
+                        "entry_price": float(t.get("entry_price", 0.0)),
+                        "stop_loss": float(t.get("stop_loss", 0.0)),
+                        "take_profit_1": float(t.get("take_profit_1", t.get("target1", 0.0))),
+                        "take_profit_2": float(t.get("take_profit_2", t.get("target2", 0.0))),
+                        "exit_price": float(t.get("exit_price", 0.0)),
+                        "pnl": float(t.get("realized_pnl", t.get("pnl", 0.0))),
+                        "status": "CLOSED",
+                        "strategy": t.get("strategy_name", t.get("strategy", "QUANT_ALPHA"))
+                    }
+                    break
+
+        digits = 4 if market == "FOREX" else (3 if "XAG" in clean_s or "SILVER" in clean_s else 2)
+        last_price = candles[-1]["close"] if candles else 0.0
+
+        return JSONResponse(content={
+            "candles": candles,
+            "symbol": clean_s,
+            "market": market,
+            "interval": interval,
+            "current_price": last_price,
+            "digits": digits,
+            "overlay": overlay
+        })
     except Exception as e:
-        logger.error(f"[API] Failed to fetch candles for {symbol}: {e}")
-        return JSONResponse(content={"candles": [], "error": str(e)})
+        logger.error(f"[API] Failed to fetch candles for {clean_s} on {market}: {e}")
+        return JSONResponse(content={"candles": [], "symbol": clean_s, "market": market, "error": str(e)})
 
 @app.get("/api/live-trade-memory")
 def get_live_trade_memory():
