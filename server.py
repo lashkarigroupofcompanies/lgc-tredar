@@ -382,7 +382,12 @@ def infer_trade_mode(item: Dict[str, Any]) -> str:
 
 
 @app.get("/api/analysis")
-def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optional[str] = "ALL"):
+def get_analysis_data(
+    date_filter: Optional[str] = "ALL",
+    market_filter: Optional[str] = "ALL",
+    count_filter: Optional[str] = "ALL",
+    mode_filter: Optional[str] = "ALL"
+):
     """Groww / Angel One style clean analytics and portfolio metrics in simple trader terms."""
     from datetime import datetime, date, timedelta
     core._refresh_state_snapshots()
@@ -493,9 +498,11 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
         tot = trades_by_date[d]["trades_count"]
         trades_by_date[d]["win_rate"] = round((w / max(1, tot)) * 100.0, 1)
 
-    # Filter trades for view based on date_filter and market_filter
+    # Filter trades for view based on date_filter, market_filter, count_filter, and mode_filter
     df_upper = (date_filter or "ALL").upper()
     mf_upper = (market_filter or "ALL").upper()
+    cf_upper = str(count_filter or "ALL").strip().upper()
+    mod_upper = str(mode_filter or "ALL").strip().upper()
 
     filtered_trades = all_combined_trades
     if df_upper == "TODAY":
@@ -504,8 +511,29 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
         filtered_trades = [t for t in filtered_trades if t["date"] == yesterday_str]
     elif df_upper == "7D":
         filtered_trades = [t for t in filtered_trades if t["date"] >= seven_days_ago_str]
+    elif df_upper == "30D":
+        thirty_days_ago_str = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        filtered_trades = [t for t in filtered_trades if t["date"] >= thirty_days_ago_str]
     elif df_upper != "ALL" and "-" in df_upper:
         filtered_trades = [t for t in filtered_trades if t["date"] == df_upper]
+
+    if mod_upper not in ["ALL", "TOTAL", ""]:
+        def matches_specific_mode(t_mode):
+            tm = str(t_mode or "SAFE").upper()
+            if mod_upper == "DANGEROUS":
+                return "DANGEROUS" in tm or "WILD" in tm
+            elif mod_upper in ["MONEY", "MONEY_MAKER"]:
+                return "MONEY" in tm or "MAKER" in tm
+            return "SAFE" in tm or tm in ["CONSERVATIVE_SAFE", "NORMAL", ""]
+        filtered_trades = [t for t in filtered_trades if matches_specific_mode(t.get("trading_mode"))]
+
+    if cf_upper not in ["ALL", "TOTAL", ""]:
+        try:
+            n_count = int(cf_upper)
+            if n_count > 0:
+                filtered_trades = filtered_trades[-n_count:]
+        except ValueError:
+            pass
 
     alloc_map = core.system_state.get("market_allocations", {})
     if not alloc_map:
@@ -933,8 +961,127 @@ def get_analysis_data(date_filter: Optional[str] = "ALL", market_filter: Optiona
             if len(defensive_rejections) >= 20:
                 break
 
+    # Build Dedicated Evolution Auditor for the requested lookback window
+    window_total = len(filtered_trades)
+    w_wins = [t for t in filtered_trades if t["pnl"] > 0]
+    w_losses = [t for t in filtered_trades if t["pnl"] < 0]
+    w_breakeven = [t for t in filtered_trades if t["pnl"] == 0]
+    
+    gross_gains = sum(t["pnl"] for t in w_wins)
+    gross_losses = abs(sum(t["pnl"] for t in w_losses))
+    profit_factor = round(gross_gains / max(1.0, gross_losses), 2) if gross_losses > 0 else (round(gross_gains, 2) if gross_gains > 0 else 0.0)
+    
+    avg_win = round(gross_gains / max(1, len(w_wins)), 2) if w_wins else 0.0
+    avg_loss = round(gross_losses / max(1, len(w_losses)), 2) if w_losses else 0.0
+    win_loss_ratio = round(avg_win / max(1.0, avg_loss), 2) if avg_loss > 0 else (avg_win if avg_win > 0 else 0.0)
+    
+    w_win_rate = round((len(w_wins) / max(1, window_total)) * 100.0, 1) if window_total > 0 else 0.0
+    w_loss_rate = round((len(w_losses) / max(1, window_total)) * 100.0, 1) if window_total > 0 else 0.0
+    
+    # Expectancy = (Win% * AvgWin) - (Loss% * AvgLoss)
+    expectancy = round(((w_win_rate / 100.0) * avg_win) - ((w_loss_rate / 100.0) * avg_loss), 2)
+
+    # Learning curve velocity: compare win rate of latest 50% of trades vs older 50%
+    if window_total >= 6:
+        half_idx = window_total // 2
+        older_half = filtered_trades[:half_idx]
+        newer_half = filtered_trades[half_idx:]
+        older_wr = (sum(1 for t in older_half if t["pnl"] > 0) / max(1, len(older_half))) * 100.0
+        newer_wr = (sum(1 for t in newer_half if t["pnl"] > 0) / max(1, len(newer_half))) * 100.0
+        learning_delta = round(newer_wr - older_wr, 1)
+    else:
+        learning_delta = 0.0
+
+    # Mode-by-Mode Success Rates within this exact window
+    modes_stats = {}
+    for mk, mk_title in [("SAFE", "🛡️ Safe Mode"), ("MONEY_MAKER", "💰 Money Maker"), ("DANGEROUS", "⚡ Dangerous Mode")]:
+        mk_trades = [t for t in filtered_trades if matches_mode_check(t.get("trading_mode"), mk)]
+        mk_w = [t for t in mk_trades if t["pnl"] > 0]
+        mk_l = [t for t in mk_trades if t["pnl"] < 0]
+        mk_tot = len(mk_trades)
+        mk_wr = round((len(mk_w) / max(1, mk_tot)) * 100.0, 1) if mk_tot > 0 else 0.0
+        mk_pnl = round(sum(t["pnl"] for t in mk_trades), 2)
+        mk_gains = sum(t["pnl"] for t in mk_w)
+        mk_loss = abs(sum(t["pnl"] for t in mk_l))
+        mk_pf = round(mk_gains / max(1.0, mk_loss), 2) if mk_loss > 0 else (round(mk_gains, 2) if mk_gains > 0 else 0.0)
+        modes_stats[mk] = {
+            "mode": mk,
+            "title": mk_title,
+            "total_trades": mk_tot,
+            "wins": len(mk_w),
+            "losses": len(mk_l),
+            "win_rate": mk_wr,
+            "total_pnl": mk_pnl,
+            "profit_factor": mk_pf
+        }
+
+    # Real Money Institutional Readiness Assessment
+    is_statistically_sound = window_total >= 100
+    is_win_rate_qualified = w_win_rate >= 55.0
+    is_profit_factor_qualified = profit_factor >= 1.5
+    is_expectancy_positive = expectancy > 0
+
+    readiness_score = 0
+    if window_total >= 25: readiness_score += 15
+    if window_total >= 50: readiness_score += 15
+    if window_total >= 100: readiness_score += 20
+    if is_win_rate_qualified: readiness_score += 20
+    if is_profit_factor_qualified: readiness_score += 15
+    if is_expectancy_positive: readiness_score += 15
+
+    if readiness_score >= 85 and window_total >= 100:
+        readiness_status = "QUALIFIED_FOR_REAL_CAPITAL"
+        readiness_badge = "🟢 INSTITUTIONALLY READY"
+        readiness_advice = f"Statistical edge proven across {window_total} trades! Win rate is {w_win_rate}%, Profit Factor {profit_factor}, Expectancy +₹{expectancy:,.2f}/trade. Neural weights have converged. Safe to allocate small live capital."
+    elif window_total >= 40:
+        readiness_status = "ACCUMULATING_EDGE"
+        readiness_badge = "🟡 CONVERGING EDGE"
+        readiness_advice = f"Neural memory is maturing ({window_total} trades logged). Win rate is {w_win_rate}% with Profit Factor {profit_factor}. Paper trade up to 100 trades to lock in statistical edge across all volatility regimes."
+    else:
+        readiness_status = "INITIAL_CALIBRATION"
+        readiness_badge = "🔵 NEURAL CALIBRATION"
+        readiness_advice = f"Early training phase ({window_total} trades logged). The agent is mapping false breakouts, wick traps, and regime transitions. Continue running DANGEROUS or MONEY_MAKER mode to build a robust statistical sample."
+
+    evolution_auditor = {
+        "selected_window_label": f"Last {count_filter} Trades" if str(count_filter).upper() != "ALL" else "All-Time Sample",
+        "count_filter": str(count_filter).upper(),
+        "date_filter": df_upper,
+        "market_filter": mf_upper,
+        "mode_filter": str(mode_filter or "ALL").upper(),
+        "sample_size": window_total,
+        "wins_count": len(w_wins),
+        "losses_count": len(w_losses),
+        "breakeven_count": len(w_breakeven),
+        "win_rate_pct": w_win_rate,
+        "loss_rate_pct": w_loss_rate,
+        "realized_pnl": round(sum(t["pnl"] for t in filtered_trades), 2),
+        "gross_profit": round(gross_gains, 2),
+        "gross_loss": round(gross_losses, 2),
+        "profit_factor": profit_factor,
+        "avg_win": avg_win,
+        "avg_loss": avg_loss,
+        "win_loss_ratio": win_loss_ratio,
+        "expectancy_per_trade": expectancy,
+        "learning_curve_delta": learning_delta,
+        "modes_comparison": modes_stats,
+        "real_money_readiness": {
+            "score": readiness_score,
+            "status": readiness_status,
+            "badge": readiness_badge,
+            "is_ready": (readiness_score >= 85 and window_total >= 100),
+            "advice": readiness_advice,
+            "checklist": [
+                {"name": "Statistical Sample (>=100 trades)", "passed": is_statistically_sound, "val": f"{window_total}/100"},
+                {"name": "Quant Win Rate (>=55%)", "passed": is_win_rate_qualified, "val": f"{w_win_rate}%"},
+                {"name": "Profit Factor (>=1.50)", "passed": is_profit_factor_qualified, "val": f"{profit_factor}x"},
+                {"name": "Positive Expectancy (> ₹0)", "passed": is_expectancy_positive, "val": f"+₹{expectancy}"}
+            ]
+        }
+    }
+
     return JSONResponse(content={
         "mission_control": mission_control,
+        "evolution_auditor": evolution_auditor,
         "summary": {
             "currency": "₹",
             "total_pnl": round(total_pnl, 2),

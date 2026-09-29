@@ -241,6 +241,8 @@ export class HackerDeskController {
   public isLlmEditMode: boolean = false;
   public activeAnalysisDateFilter: string = 'ALL';
   public activeAnalysisMarketFilter: string = 'ALL';
+  public activeAnalysisCountFilter: string = 'ALL';
+  public activeAnalysisModeFilter: string = 'ALL';
   public updatePollTimer: any = null;
   public agentStartedAt: number | null = null;
   public agentUptimeTimer: any = null;
@@ -2641,7 +2643,7 @@ export class HackerDeskController {
 
   private async loadAnalysisData(): Promise<void> {
     try {
-      const q = `date_filter=${encodeURIComponent(this.activeAnalysisDateFilter)}&market_filter=${encodeURIComponent(this.activeAnalysisMarketFilter)}`;
+      const q = `date_filter=${encodeURIComponent(this.activeAnalysisDateFilter)}&market_filter=${encodeURIComponent(this.activeAnalysisMarketFilter)}&count_filter=${encodeURIComponent(this.activeAnalysisCountFilter)}&mode_filter=${encodeURIComponent(this.activeAnalysisModeFilter)}`;
       const logQ = `date_filter=${encodeURIComponent(this.activeAnalysisDateFilter)}&view_mode=${encodeURIComponent(this.activeSimpleLogsViewMode || 'ALL')}`;
       const [resAna, resRisk, resHealth, resLogs] = await Promise.all([
         fetch(`/api/analysis?${q}`).catch(() => null),
@@ -2753,6 +2755,9 @@ export class HackerDeskController {
       const mktName = isTotalView ? 'TOTAL PORTFOLIO' : (this.activeAnalysisMarketFilter.replace('_STOCKS', ' EQUITIES'));
       
       mainContentHtml = `
+        <!-- Section 0: Autonomous Evolution & Real-Money Readiness Meter -->
+        ${this.renderEvolutionAuditorBanner(data, cur)}
+
         <!-- Section 1: Dedicated Multi-Market Portfolio Deck (Each gets ₹1,00,000) -->
         ${this.renderPortfolioDeck(data, cur)}
 
@@ -2906,7 +2911,10 @@ export class HackerDeskController {
     } else if (this.activeAnalysisMainTab === 'MISSION_CONTROL') {
       mainContentHtml = this.renderMissionControlSection(data, cur);
     } else if (this.activeAnalysisMainTab === 'EXECUTED_TRADES') {
-      mainContentHtml = this.renderExecutedTradesSection(data, cur);
+      mainContentHtml = `
+        ${this.renderEvolutionAuditorBanner(data, cur)}
+        ${this.renderExecutedTradesSection(data, cur)}
+      `;
     } else if (this.activeAnalysisMainTab === 'LLM_CONFIG') {
       mainContentHtml = this.renderLlmConfigSection();
     } else if (this.activeAnalysisMainTab === 'RISK') {
@@ -2914,7 +2922,10 @@ export class HackerDeskController {
     } else if (this.activeAnalysisMainTab === 'HEALTH') {
       mainContentHtml = this.renderAgentHealthSection();
     } else if (this.activeAnalysisMainTab === 'LEARNING') {
-      mainContentHtml = this.renderNeuralLearningSection(data, cur);
+      mainContentHtml = `
+        ${this.renderEvolutionAuditorBanner(data, cur)}
+        ${this.renderNeuralLearningSection(data, cur)}
+      `;
     } else if (this.activeAnalysisMainTab === 'LOGS') {
       mainContentHtml = this.renderSimpleLogsSection();
     }
@@ -2963,7 +2974,7 @@ export class HackerDeskController {
       ${mainContentHtml}
     `;
 
-    // Filter Buttons (Period & Market)
+    // Filter Buttons (Period, Market, Count Lookback, Regime Mode)
     body.querySelectorAll('.hk-filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const type = btn.getAttribute('data-type');
@@ -2973,6 +2984,12 @@ export class HackerDeskController {
           this.loadAnalysisData();
         } else if (type === 'market' && val) {
           this.activeAnalysisMarketFilter = val;
+          this.loadAnalysisData();
+        } else if (type === 'count' && val) {
+          this.activeAnalysisCountFilter = val;
+          this.loadAnalysisData();
+        } else if (type === 'mode' && val) {
+          this.activeAnalysisModeFilter = val;
           this.loadAnalysisData();
         }
       });
@@ -2985,6 +3002,22 @@ export class HackerDeskController {
         this.activeAnalysisDateFilter = dateInput.value;
         this.loadAnalysisData();
       }
+    });
+
+    // Custom Count Selector (User can type any number e.g. 50, 100, 300, 1000)
+    const countInput = document.getElementById('hkCustomCountSelector') as HTMLInputElement | null;
+    const handleCustomCount = () => {
+      if (countInput && countInput.value) {
+        const n = parseInt(countInput.value.trim(), 10);
+        if (!isNaN(n) && n > 0) {
+          this.activeAnalysisCountFilter = String(n);
+          this.loadAnalysisData();
+        }
+      }
+    };
+    countInput?.addEventListener('change', handleCustomCount);
+    countInput?.addEventListener('keyup', (e: KeyboardEvent) => {
+      if (e.key === 'Enter') handleCustomCount();
     });
 
     // Daily Timeline Date Chips
@@ -3639,6 +3672,225 @@ export class HackerDeskController {
           }).join('')}
         </tbody>
       </table>
+    `;
+  }
+
+  // --- Dedicated Autonomous Evolution & Real-Money Readiness Meter ---
+  private renderEvolutionAuditorBanner(data: any, cur: string): string {
+    const aud = data.evolution_auditor || {};
+    const winRate = aud.win_rate_pct !== undefined ? aud.win_rate_pct : (data.summary?.win_rate || 0);
+    const totalTrades = aud.sample_size !== undefined ? aud.sample_size : (data.summary?.total_trades || 0);
+    const wins = aud.wins_count !== undefined ? aud.wins_count : (data.summary?.wins_count || 0);
+    const losses = aud.losses_count !== undefined ? aud.losses_count : (data.summary?.losses_count || 0);
+    const breakeven = aud.breakeven_count || 0;
+    const pnl = aud.realized_pnl !== undefined ? aud.realized_pnl : (data.summary?.realized_pnl || 0);
+    const profitFactor = aud.profit_factor !== undefined ? aud.profit_factor : 1.0;
+    const expectancy = aud.expectancy_per_trade !== undefined ? aud.expectancy_per_trade : 0;
+    const ratio = aud.win_loss_ratio !== undefined ? aud.win_loss_ratio : 1.0;
+    const delta = aud.learning_curve_delta !== undefined ? aud.learning_curve_delta : 0.0;
+    const readiness = aud.real_money_readiness || {};
+    const modes = aud.modes_comparison || {};
+    const safeMode = modes.SAFE || { win_rate: 0, total_trades: 0, wins: 0, losses: 0, total_pnl: 0, profit_factor: 0 };
+    const mmMode = modes.MONEY_MAKER || { win_rate: 0, total_trades: 0, wins: 0, losses: 0, total_pnl: 0, profit_factor: 0 };
+    const dangMode = modes.DANGEROUS || { win_rate: 0, total_trades: 0, wins: 0, losses: 0, total_pnl: 0, profit_factor: 0 };
+    const windowLabel = aud.selected_window_label || (this.activeAnalysisCountFilter !== 'ALL' ? `Last ${this.activeAnalysisCountFilter} Trades` : 'All-Time Sample');
+
+    const isProfit = pnl >= 0;
+    const wrColor = winRate >= 60 ? '#00ff66' : (winRate >= 50 ? '#00f2fe' : '#ff4d6d');
+    const badgeColor = readiness.is_ready ? '#00ff66' : (totalTrades >= 40 ? '#ffaa00' : '#00f2fe');
+
+    return `
+      <section style="background:linear-gradient(135deg, rgba(8,20,30,0.95) 0%, rgba(5,13,20,0.98) 100%);border:1px solid rgba(0,242,254,0.3);border-radius:10px;padding:16px;margin-bottom:16px;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+        <!-- Top Bar: Header & Readiness Badge -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;border-bottom:1px solid rgba(20,56,40,0.6);padding-bottom:10px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:18px;">🧠</span>
+              <span style="font-family:var(--hk-font-mono);font-size:14px;font-weight:900;color:#f0fdf4;letter-spacing:0.8px;">
+                NEURAL EVOLUTION AUDITOR & REAL-MONEY READINESS METER
+              </span>
+              <span style="font-size:10px;background:rgba(0,242,254,0.15);color:#00f2fe;border:1px solid rgba(0,242,254,0.4);padding:2px 8px;border-radius:12px;font-family:var(--hk-font-mono);font-weight:700;">
+                ${windowLabel}
+              </span>
+            </div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+              Auditing statistical significance, strategy win rates, and Bayesian weight convergence before live capital deployment.
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="background:rgba(0,0,0,0.4);border:1px solid ${badgeColor};padding:4px 12px;border-radius:20px;display:flex;align-items:center;gap:6px;">
+              <span style="font-size:10px;color:${badgeColor};font-weight:800;font-family:var(--hk-font-mono);letter-spacing:0.5px;">
+                ${readiness.badge || (readiness.is_ready ? '🟢 INSTITUTIONALLY READY' : (totalTrades >= 40 ? '🟡 CONVERGING EDGE' : '🔵 NEURAL CALIBRATION'))}
+              </span>
+              <span style="font-size:10px;color:#64748b;">•</span>
+              <span style="font-size:11px;color:#f0fdf4;font-family:var(--hk-font-mono);font-weight:700;">
+                Score: ${readiness.score || 0}/100
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Guidance Banner -->
+        <div style="background:rgba(0,242,254,0.06);border-left:3px solid #00f2fe;padding:8px 12px;border-radius:4px;margin-bottom:14px;display:flex;align-items:flex-start;gap:8px;">
+          <span style="font-size:13px;line-height:1.2;">💡</span>
+          <div style="font-size:11px;color:#cbd5e1;line-height:1.4;">
+            <strong style="color:#00f2fe;">Evolution Status:</strong> ${readiness.advice || 'Gathering trade post-mortems across all markets.'}
+          </div>
+        </div>
+
+        <!-- 4-Card Live Auditor Stats Grid -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:14px;">
+          <!-- Card 1: Win Accuracy in Window -->
+          <div style="background:#09141c;border:1px solid #142a22;border-radius:8px;padding:12px;">
+            <div style="font-size:10px;color:#64748b;font-weight:700;font-family:var(--hk-font-mono);margin-bottom:4px;display:flex;justify-content:space-between;">
+              <span>SUCCESS ACCURACY</span>
+              <span style="color:${wrColor};">IN SELECTED WINDOW</span>
+            </div>
+            <div style="font-size:24px;font-weight:900;color:${wrColor};font-family:var(--hk-font-mono);">
+              ${winRate.toFixed(1)}%
+            </div>
+            <div style="font-size:11px;color:#cbd5e1;margin-top:2px;">
+              <strong style="color:#00ff66;">${wins} Wins</strong> • <strong style="color:#ff4d6d;">${losses} Losses</strong> ${breakeven ? `• ${breakeven} Scratches` : ''}
+            </div>
+            <!-- Progress bar -->
+            <div style="width:100%;height:5px;background:#14221c;border-radius:3px;overflow:hidden;margin-top:8px;">
+              <div style="width:${Math.min(100, Math.max(0, winRate))}%;height:100%;background:${wrColor};border-radius:3px;transition:width 0.4s ease;"></div>
+            </div>
+            <div style="font-size:10px;color:#64748b;margin-top:4px;">
+              Sample: ${totalTrades} closed trades evaluated
+            </div>
+          </div>
+
+          <!-- Card 2: Profit Factor & Expectancy -->
+          <div style="background:#09141c;border:1px solid #142a22;border-radius:8px;padding:12px;">
+            <div style="font-size:10px;color:#64748b;font-weight:700;font-family:var(--hk-font-mono);margin-bottom:4px;display:flex;justify-content:space-between;">
+              <span>PROFIT FACTOR & RATIO</span>
+              <span style="color:#00f2fe;">PAYOFF EDGE</span>
+            </div>
+            <div style="font-size:24px;font-weight:900;color:${profitFactor >= 1.5 ? '#00ff66' : (profitFactor >= 1.0 ? '#00f2fe' : '#ff4d6d')};font-family:var(--hk-font-mono);">
+              ${profitFactor.toFixed(2)}x
+            </div>
+            <div style="font-size:11px;color:#cbd5e1;margin-top:2px;">
+              Avg Win/Loss: <strong style="color:#00f2fe;">${ratio.toFixed(2)} : 1</strong>
+            </div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:6px;">
+              Expectancy: <strong style="color:${expectancy >= 0 ? '#00ff66' : '#ff4d6d'};">${expectancy >= 0 ? '+' : ''}${cur}${expectancy.toLocaleString('en-IN')}/trade</strong>
+            </div>
+          </div>
+
+          <!-- Card 3: Net Realized Profit/Loss in Window -->
+          <div style="background:#09141c;border:1px solid #142a22;border-radius:8px;padding:12px;">
+            <div style="font-size:10px;color:#64748b;font-weight:700;font-family:var(--hk-font-mono);margin-bottom:4px;display:flex;justify-content:space-between;">
+              <span>NET REALIZED P&L</span>
+              <span style="color:${isProfit ? '#00ff66' : '#ff4d6d'};">${isProfit ? 'PROFITABLE' : 'DRAWDOWN'}</span>
+            </div>
+            <div style="font-size:24px;font-weight:900;color:${isProfit ? '#00ff66' : '#ff4d6d'};font-family:var(--hk-font-mono);">
+              ${isProfit ? '+' : ''}${cur}${Math.abs(pnl).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+            <div style="font-size:11px;color:#cbd5e1;margin-top:2px;">
+              Gross Gains: <span style="color:#00ff66;">+${cur}${(aud.gross_profit || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}</span>
+            </div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:6px;">
+              Gross Cuts: <span style="color:#ff4d6d;">-${cur}${(aud.gross_loss || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}</span>
+            </div>
+          </div>
+
+          <!-- Card 4: Learning Velocity (Evolution Delta) -->
+          <div style="background:#09141c;border:1px solid #142a22;border-radius:8px;padding:12px;">
+            <div style="font-size:10px;color:#64748b;font-weight:700;font-family:var(--hk-font-mono);margin-bottom:4px;display:flex;justify-content:space-between;">
+              <span>LEARNING VELOCITY</span>
+              <span style="color:#ffaa00;">EVOLUTION</span>
+            </div>
+            <div style="font-size:24px;font-weight:900;color:${delta >= 0 ? '#00ff66' : '#ffaa00'};font-family:var(--hk-font-mono);">
+              ${delta >= 0 ? '▲ +' : '▼ '}${delta.toFixed(1)}%
+            </div>
+            <div style="font-size:11px;color:#cbd5e1;margin-top:2px;">
+              Win rate improvement curve in recent trades vs older trades.
+            </div>
+            <div style="font-size:10px;color:#64748b;margin-top:6px;">
+              Negative constraints saved capital: <strong style="color:#00f2fe;">${data.evolution?.early_exits_saved_capital_count || 0} times</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode-by-Mode Success Rates: Safe vs Money Maker vs Dangerous -->
+        <div style="margin-top:14px;background:#061017;border:1px solid #11261d;border-radius:8px;padding:12px;">
+          <div style="font-size:11px;font-family:var(--hk-font-mono);font-weight:800;color:#00f2fe;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+            <span>⚔️ MODE-BY-MODE SUCCESS RATE BREAKDOWN (${windowLabel})</span>
+            <span style="font-size:10px;color:#64748b;font-weight:400;">Compare all 3 operational regimes</span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:10px;">
+            <!-- SAFE MODE -->
+            <div style="background:#09161f;border:1px solid rgba(0,242,254,0.3);border-radius:6px;padding:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <span style="font-size:11px;font-weight:700;color:#00f2fe;">🛡️ SAFE MODE</span>
+                <span style="font-size:12px;font-weight:800;color:${safeMode.win_rate >= 60 ? '#00ff66' : '#00f2fe'};font-family:var(--hk-font-mono);">${safeMode.win_rate.toFixed(1)}% WR</span>
+              </div>
+              <div style="font-size:11px;color:#cbd5e1;display:flex;justify-content:space-between;margin-top:4px;">
+                <span>Trades: <strong>${safeMode.total_trades}</strong> (${safeMode.wins}W / ${safeMode.losses}L)</span>
+                <span style="color:${safeMode.total_pnl >= 0 ? '#00ff66' : '#ff4d6d'};font-family:var(--hk-font-mono);font-weight:700;">
+                  ${safeMode.total_pnl >= 0 ? '+' : ''}${cur}${safeMode.total_pnl.toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div style="font-size:10px;color:#64748b;margin-top:4px;">
+                Profit Factor: <strong style="color:#f0fdf4;">${safeMode.profit_factor}x</strong> • Institutional Sniper
+              </div>
+            </div>
+
+            <!-- MONEY MAKER MODE -->
+            <div style="background:#09161f;border:1px solid rgba(255,170,0,0.3);border-radius:6px;padding:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <span style="font-size:11px;font-weight:700;color:#ffaa00;">💰 MONEY MAKER</span>
+                <span style="font-size:12px;font-weight:800;color:${mmMode.win_rate >= 55 ? '#00ff66' : '#ffaa00'};font-family:var(--hk-font-mono);">${mmMode.win_rate.toFixed(1)}% WR</span>
+              </div>
+              <div style="font-size:11px;color:#cbd5e1;display:flex;justify-content:space-between;margin-top:4px;">
+                <span>Trades: <strong>${mmMode.total_trades}</strong> (${mmMode.wins}W / ${mmMode.losses}L)</span>
+                <span style="color:${mmMode.total_pnl >= 0 ? '#00ff66' : '#ff4d6d'};font-family:var(--hk-font-mono);font-weight:700;">
+                  ${mmMode.total_pnl >= 0 ? '+' : ''}${cur}${mmMode.total_pnl.toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div style="font-size:10px;color:#64748b;margin-top:4px;">
+                Profit Factor: <strong style="color:#f0fdf4;">${mmMode.profit_factor}x</strong> • Balanced Intraday
+              </div>
+            </div>
+
+            <!-- DANGEROUS MODE -->
+            <div style="background:#09161f;border:1px solid rgba(255,77,109,0.3);border-radius:6px;padding:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <span style="font-size:11px;font-weight:700;color:#ff4d6d;">⚡ DANGEROUS LAB</span>
+                <span style="font-size:12px;font-weight:800;color:${dangMode.win_rate >= 50 ? '#00ff66' : '#ff4d6d'};font-family:var(--hk-font-mono);">${dangMode.win_rate.toFixed(1)}% WR</span>
+              </div>
+              <div style="font-size:11px;color:#cbd5e1;display:flex;justify-content:space-between;margin-top:4px;">
+                <span>Trades: <strong>${dangMode.total_trades}</strong> (${dangMode.wins}W / ${dangMode.losses}L)</span>
+                <span style="color:${dangMode.total_pnl >= 0 ? '#00ff66' : '#ff4d6d'};font-family:var(--hk-font-mono);font-weight:700;">
+                  ${dangMode.total_pnl >= 0 ? '+' : ''}${cur}${dangMode.total_pnl.toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div style="font-size:10px;color:#64748b;margin-top:4px;">
+                Profit Factor: <strong style="color:#f0fdf4;">${dangMode.profit_factor}x</strong> • Neural Fast-Evolution Lab
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Institutional Real-Money Qualification Checklist -->
+        <div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:10px;color:#64748b;font-weight:700;font-family:var(--hk-font-mono);">DEPLOYMENT GATES:</span>
+          ${(readiness.checklist || [
+            { name: "Sample (>=100 trades)", passed: totalTrades >= 100, val: `${totalTrades}/100` },
+            { name: "Win Rate (>=55%)", passed: winRate >= 55, val: `${winRate.toFixed(1)}%` },
+            { name: "Profit Factor (>=1.5x)", passed: profitFactor >= 1.5, val: `${profitFactor.toFixed(2)}x` },
+            { name: "Expectancy (>0)", passed: expectancy > 0, val: `${expectancy >= 0 ? '+' : ''}${cur}${expectancy}` }
+          ]).map((c: any) => `
+            <div style="font-size:10px;font-family:var(--hk-font-mono);padding:2px 8px;border-radius:4px;border:1px solid ${c.passed ? '#00ff66' : '#334155'};background:${c.passed ? 'rgba(0,255,102,0.1)' : 'rgba(30,41,59,0.3)'};color:${c.passed ? '#00ff66' : '#94a3b8'};display:flex;align-items:center;gap:4px;">
+              <span>${c.passed ? '✓' : '○'}</span>
+              <span>${c.name}: <strong>${c.val}</strong></span>
+            </div>
+          `).join('')}
+        </div>
+      </section>
     `;
   }
 
@@ -4470,55 +4722,114 @@ export class HackerDeskController {
     const allCount = s.total_trades_all_time || s.total_trades || 0;
     const curDate = this.activeAnalysisDateFilter;
     const curMkt = this.activeAnalysisMarketFilter;
+    const curCount = this.activeAnalysisCountFilter;
+    const curMode = this.activeAnalysisModeFilter;
 
     return `
-      <div class="hk-ana-filter-console" style="margin-bottom:14px;">
-        <!-- Left: Date Range Filter Pills -->
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-          <span style="font-size:11px;color:#00f2fe;font-weight:700;letter-spacing:0.5px;font-family:var(--hk-font-mono);display:flex;align-items:center;gap:4px;">
-            <span>📅</span> PERIOD:
-          </span>
-          <button class="hk-filter-btn ${curDate === 'ALL' ? 'active' : ''}" data-type="date" data-val="ALL">
-            ⚡ All-Time (${allCount})
-          </button>
-          <button class="hk-filter-btn ${curDate === 'TODAY' ? 'active' : ''}" data-type="date" data-val="TODAY">
-            ☀️ Today (${todayCount})
-          </button>
-          <button class="hk-filter-btn ${curDate === 'YESTERDAY' ? 'active' : ''}" data-type="date" data-val="YESTERDAY">
-            ⏮️ Yesterday
-          </button>
-          <button class="hk-filter-btn ${curDate === '7D' ? 'active' : ''}" data-type="date" data-val="7D">
-            🗓️ Last 7 Days
-          </button>
-          <div style="display:flex;align-items:center;gap:4px;margin-left:4px;">
-            <span style="font-size:10px;color:#64748b;">Custom Date:</span>
-            <input type="date" id="hkCustomDateSelector" style="background:#0a1a24;border:1px solid #143828;color:#00ff66;font-family:var(--hk-font-mono);font-size:11px;padding:3px 8px;border-radius:4px;outline:none;" value="${curDate.includes('-') ? curDate : ''}" />
+      <div class="hk-ana-filter-console" style="margin-bottom:14px;background:#061017;border:1px solid #142a22;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;">
+        <!-- Row 1: Time Period & Trade Count Lookback (Window) -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <!-- Left: Date Range Filter Pills -->
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:#00f2fe;font-weight:700;letter-spacing:0.5px;font-family:var(--hk-font-mono);display:flex;align-items:center;gap:4px;">
+              <span>📅</span> PERIOD:
+            </span>
+            <button class="hk-filter-btn ${curDate === 'ALL' ? 'active' : ''}" data-type="date" data-val="ALL">
+              ⚡ All-Time (${allCount})
+            </button>
+            <button class="hk-filter-btn ${curDate === 'TODAY' ? 'active' : ''}" data-type="date" data-val="TODAY">
+              ☀️ Today (${todayCount})
+            </button>
+            <button class="hk-filter-btn ${curDate === 'YESTERDAY' ? 'active' : ''}" data-type="date" data-val="YESTERDAY">
+              ⏮️ Yesterday
+            </button>
+            <button class="hk-filter-btn ${curDate === '7D' ? 'active' : ''}" data-type="date" data-val="7D">
+              🗓️ Last 7 Days
+            </button>
+            <button class="hk-filter-btn ${curDate === '30D' ? 'active' : ''}" data-type="date" data-val="30D">
+              📅 30 Days
+            </button>
+            <div style="display:flex;align-items:center;gap:4px;margin-left:4px;">
+              <span style="font-size:10px;color:#64748b;">Custom:</span>
+              <input type="date" id="hkCustomDateSelector" style="background:#0a1a24;border:1px solid #143828;color:#00ff66;font-family:var(--hk-font-mono);font-size:11px;padding:3px 8px;border-radius:4px;outline:none;" value="${curDate.includes('-') ? curDate : ''}" />
+            </div>
+          </div>
+
+          <!-- Right: Trade Count Lookback Filter Pills & Custom Count Input -->
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:#f59e0b;font-weight:700;letter-spacing:0.5px;font-family:var(--hk-font-mono);display:flex;align-items:center;gap:4px;">
+              <span>🔢</span> TRADES LOOKBACK:
+            </span>
+            <button class="hk-filter-btn ${curCount === 'ALL' ? 'active' : ''}" data-type="count" data-val="ALL" title="Audit all trades in database">
+              All Trades
+            </button>
+            <button class="hk-filter-btn ${curCount === '25' ? 'active' : ''}" data-type="count" data-val="25" title="Audit last 25 trades">
+              Last 25
+            </button>
+            <button class="hk-filter-btn ${curCount === '50' ? 'active' : ''}" data-type="count" data-val="50" title="Audit last 50 trades">
+              Last 50
+            </button>
+            <button class="hk-filter-btn ${curCount === '100' ? 'active' : ''}" data-type="count" data-val="100" title="Audit last 100 trades for statistical readiness">
+              Last 100
+            </button>
+            <button class="hk-filter-btn ${curCount === '200' ? 'active' : ''}" data-type="count" data-val="200" title="Audit last 200 trades">
+              Last 200
+            </button>
+            <button class="hk-filter-btn ${curCount === '500' ? 'active' : ''}" data-type="count" data-val="500" title="Audit last 500 trades">
+              Last 500
+            </button>
+            <div style="display:flex;align-items:center;gap:4px;margin-left:4px;">
+              <span style="font-size:10px;color:#64748b;">Custom #:</span>
+              <input type="number" id="hkCustomCountSelector" placeholder="Any #" min="1" max="5000" style="width:72px;background:#0a1a24;border:1px solid #143828;color:#f59e0b;font-family:var(--hk-font-mono);font-size:11px;padding:3px 6px;border-radius:4px;outline:none;" value="${curCount !== 'ALL' && !['25','50','100','200','500'].includes(curCount) ? curCount : ''}" title="Enter custom number of recent trades to audit" />
+            </div>
           </div>
         </div>
 
-        <!-- Right: Multi-Market Quick Filter Switcher -->
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-          <span style="font-size:11px;color:#00ff66;font-weight:700;letter-spacing:0.5px;font-family:var(--hk-font-mono);display:flex;align-items:center;gap:4px;">
-            <span>🌍</span> MARKET:
-          </span>
-          <button class="hk-filter-btn ${curMkt === 'ALL' ? 'active' : ''}" data-type="market" data-val="ALL">
-            🌐 All
-          </button>
-          <button class="hk-filter-btn ${curMkt === 'INDIAN_STOCKS' ? 'active' : ''}" data-type="market" data-val="INDIAN_STOCKS">
-            🇮🇳 India
-          </button>
-          <button class="hk-filter-btn ${curMkt === 'CRYPTO' ? 'active' : ''}" data-type="market" data-val="CRYPTO">
-            🪙 Crypto
-          </button>
-          <button class="hk-filter-btn ${curMkt === 'US_STOCKS' ? 'active' : ''}" data-type="market" data-val="US_STOCKS">
-            🇺🇸 US
-          </button>
-          <button class="hk-filter-btn ${curMkt === 'FOREX' ? 'active' : ''}" data-type="market" data-val="FOREX">
-            💱 Forex
-          </button>
-          <button class="hk-filter-btn ${curMkt === 'COMMODITIES' ? 'active' : ''}" data-type="market" data-val="COMMODITIES">
-            ⚡ Comm
-          </button>
+        <!-- Row 2: Regime Mode & Multi-Market Quick Switcher -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-top:1px solid #0f241d;padding-top:8px;">
+          <!-- Left: Regime Mode Filter Pills -->
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:#a855f7;font-weight:700;letter-spacing:0.5px;font-family:var(--hk-font-mono);display:flex;align-items:center;gap:4px;">
+              <span>⚡</span> REGIME MODE:
+            </span>
+            <button class="hk-filter-btn ${curMode === 'ALL' ? 'active' : ''}" data-type="mode" data-val="ALL">
+              🌐 All Modes
+            </button>
+            <button class="hk-filter-btn ${curMode === 'SAFE' ? 'active' : ''}" data-type="mode" data-val="SAFE">
+              🛡️ Safe Mode
+            </button>
+            <button class="hk-filter-btn ${curMode === 'MONEY_MAKER' ? 'active' : ''}" data-type="mode" data-val="MONEY_MAKER">
+              💰 Money Maker
+            </button>
+            <button class="hk-filter-btn ${curMode === 'DANGEROUS' ? 'active' : ''}" data-type="mode" data-val="DANGEROUS">
+              ⚡ Dangerous
+            </button>
+          </div>
+
+          <!-- Right: Multi-Market Quick Filter Switcher -->
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:#00ff66;font-weight:700;letter-spacing:0.5px;font-family:var(--hk-font-mono);display:flex;align-items:center;gap:4px;">
+              <span>🌍</span> MARKET:
+            </span>
+            <button class="hk-filter-btn ${curMkt === 'ALL' ? 'active' : ''}" data-type="market" data-val="ALL">
+              🌐 All
+            </button>
+            <button class="hk-filter-btn ${curMkt === 'INDIAN_STOCKS' ? 'active' : ''}" data-type="market" data-val="INDIAN_STOCKS">
+              🇮🇳 India
+            </button>
+            <button class="hk-filter-btn ${curMkt === 'CRYPTO' ? 'active' : ''}" data-type="market" data-val="CRYPTO">
+              🪙 Crypto
+            </button>
+            <button class="hk-filter-btn ${curMkt === 'US_STOCKS' ? 'active' : ''}" data-type="market" data-val="US_STOCKS">
+              🇺🇸 US
+            </button>
+            <button class="hk-filter-btn ${curMkt === 'FOREX' ? 'active' : ''}" data-type="market" data-val="FOREX">
+              💱 Forex
+            </button>
+            <button class="hk-filter-btn ${curMkt === 'COMMODITIES' ? 'active' : ''}" data-type="market" data-val="COMMODITIES">
+              ⚡ Comm
+            </button>
+          </div>
         </div>
       </div>
     `;
